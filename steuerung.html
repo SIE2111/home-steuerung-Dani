@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0F1115">
+<title>Zuhause</title>
+<style>
+  :root{
+    --bg:#0F1115; --card:#1A1D24; --card2:#242833; --line:#2C313D;
+    --text:#F3F4F6; --muted:#8E94A3; --accent:#F7B83D; --accent2:#FF8A3D; --err:#E5646B; --ok:#4CC38A;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  body{min-height:100vh;
+    background:radial-gradient(900px 420px at 80% -10%,#2A2113 0%,transparent 60%),var(--bg);
+    padding:max(18px,env(safe-area-inset-top)) 16px max(40px,env(safe-area-inset-bottom))}
+  .wrap{max-width:760px;margin:0 auto}
+  header{display:flex;align-items:flex-start;justify-content:space-between;margin:6px 2px 18px}
+  h1{font-size:28px;margin:0;font-weight:750;letter-spacing:-.02em}
+  .hello{color:var(--muted);font-size:14px;margin-top:3px}
+  .status{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;padding-top:8px}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--err)}
+  .dot.ok{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+
+  .summary{display:flex;align-items:center;justify-content:space-between;background:var(--card);
+    border:1px solid var(--line);border-radius:20px;padding:14px 16px;margin-bottom:16px}
+  .summary .big{font-size:18px;font-weight:650}
+  .summary .small{font-size:13px;color:var(--muted);margin-top:2px}
+  .pill{background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:14px;
+    padding:10px 16px;font-size:14px;font-weight:600;cursor:pointer}
+  .pill:active{background:var(--accent);color:#14161B;border-color:var(--accent)}
+
+  .tabs{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 12px;margin:0 -16px 6px;padding-left:16px;padding-right:16px;
+    scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{flex:none;background:var(--card);color:var(--muted);border:1px solid var(--line);border-radius:999px;
+    padding:9px 16px;font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap}
+  .tab.act{background:var(--accent);color:#16130B;border-color:var(--accent)}
+
+  .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  @media(min-width:620px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  .tile{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:14px;
+    display:flex;flex-direction:column;gap:10px;min-height:128px;position:relative;overflow:hidden;
+    transition:background .25s,border-color .25s,box-shadow .25s}
+  .tile.on{background:linear-gradient(150deg,#3A2E14 0%,#241F17 55%,#1A1D24 100%);border-color:#5A4720;
+    box-shadow:0 8px 28px -12px rgba(247,184,61,.45)}
+  .tile.unavailable{opacity:.4}
+  .row{display:flex;align-items:center;justify-content:space-between}
+  .ico{width:44px;height:44px;border-radius:14px;background:var(--card2);display:flex;align-items:center;justify-content:center;color:var(--muted);transition:all .25s}
+  .ico svg{width:24px;height:24px;fill:currentColor}
+  .tile.on .ico{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#1B1405}
+  .tog{width:46px;height:28px;border-radius:14px;background:var(--card2);border:1px solid var(--line);position:relative;padding:0;cursor:pointer;flex:none}
+  .tog::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#C9CDD6;transition:transform .2s,background .2s}
+  .tile.on .tog{background:var(--accent);border-color:var(--accent)}
+  .tile.on .tog::after{transform:translateX(18px);background:#fff}
+  .nm{font-size:15px;font-weight:650;line-height:1.2;word-break:break-word}
+  .sub{font-size:13px;color:var(--muted);margin-top:2px}
+  .tile.on .sub{color:#E7C985}
+  .spacer{flex:1}
+  .slider{display:flex;align-items:center;gap:10px}
+  input[type=range]{width:100%;height:30px;-webkit-appearance:none;appearance:none;background:transparent;margin:0}
+  input[type=range]::-webkit-slider-runnable-track{height:10px;border-radius:6px;background:rgba(255,255,255,.12)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:24px;height:24px;margin-top:-7px;border-radius:50%;background:#fff;border:0;box-shadow:0 2px 8px rgba(0,0,0,.4)}
+  input[type=range]::-moz-range-track{height:10px;border-radius:6px;background:rgba(255,255,255,.12)}
+  input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;background:#fff;border:0}
+  .btns{display:flex;gap:8px}
+  .btn{flex:1;background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:12px;padding:11px 0;font-size:16px;cursor:pointer}
+  .btn:active{background:var(--accent);color:#14161B}
+  .go{background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:12px;padding:10px 14px;font-size:14px;font-weight:600;cursor:pointer}
+  .go:active{background:var(--accent);color:#14161B}
+
+  .weather{display:flex;align-items:center;gap:16px;background:linear-gradient(135deg,#1F2A3D 0%,#1A1D24 70%);
+    border:1px solid var(--line);border-radius:22px;padding:16px 18px;margin-bottom:12px}
+  .weather .wi{font-size:46px;line-height:1}
+  .weather .wt{font-size:34px;font-weight:750;letter-spacing:-.02em;line-height:1}
+  .weather .wc{font-size:14px;color:var(--muted);margin-top:4px}
+  .weather .wd{margin-left:auto;display:grid;grid-template-columns:auto auto;gap:4px 14px;font-size:13px;color:var(--muted);text-align:right}
+  .weather .wd b{color:var(--text);font-weight:600}
+
+  footer{margin-top:34px;display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:13px}
+  footer button{background:none;border:1px solid var(--line);color:var(--muted);border-radius:12px;padding:8px 14px;font-size:13px;cursor:pointer}
+  #msg{text-align:center;color:var(--muted);margin-top:70px;font-size:16px;line-height:1.5;padding:0 12px}
+  #msg b{color:var(--text)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div><h1 id="greet">Zuhause</h1><div class="hello" id="hello"></div></div>
+    <div class="status"><span class="dot" id="dot"></span><span id="stxt">verbinde …</span></div>
+  </header>
+  <div id="msg">Anmeldung bei Home Assistant …</div>
+  <div id="app" hidden>
+    <div class="weather" id="weather" hidden>
+      <div class="wi" id="wIco"></div>
+      <div><div class="wt" id="wTemp"></div><div class="wc" id="wCond"></div></div>
+      <div class="wd" id="wDet"></div>
+    </div>
+    <div class="summary">
+      <div><div class="big" id="sumBig"></div><div class="small" id="sumSmall"></div></div>
+      <button class="pill" id="allOff">Alles aus</button>
+    </div>
+    <nav class="tabs" id="tabs"></nav>
+    <main class="grid" id="grid"></main>
+  </div>
+  <footer><span id="who"></span><button id="logout" hidden>Abmelden</button></footer>
+</div>
+
+<script>
+/* =====================================================================
+   EINSTELLUNGEN (optional) – die Räume kommen automatisch aus den
+   Bereichen von Home Assistant. Hier kannst du Geräte umbenennen oder
+   ausblenden. Entitäts-IDs: Einstellungen → Geräte & Dienste → Entitäten.
+   ===================================================================== */
+const UMBENENNEN = {
+  // 'light.deckenlicht_kuche_dimmbar_l1': 'Decke',
+};
+const VERSTECKEN = [
+  // 'light.deckenlicht_kuche_dimmbar_l2',
+];
+// Diese Entitäten werden nie angezeigt (Technik)
+const AUSSCHLUSS = [
+  /^switch\.(szenenschalter|schalter)_/,
+  /permit_join|bridge/i,
+  /backlight|vibration|momentary|countdown|indicator|induction|power_on|child_lock|led_|relay_status/i,
+];
+const AUTO_DOMAINS = ['light', 'switch', 'cover', 'scene', 'script', 'input_boolean'];
+// Wetter-Entität. Leer lassen = die erste gefundene "weather."-Entität wird genutzt.
+const WETTER = '';
+/* ===================================================================== */
+
+const WCOND = {
+  'clear-night': ['🌙', 'Klar'], 'cloudy': ['☁️', 'Bewölkt'], 'exceptional': ['⚠️', 'Außergewöhnlich'],
+  'fog': ['🌫️', 'Nebel'], 'hail': ['🌨️', 'Hagel'], 'lightning': ['🌩️', 'Gewitter'],
+  'lightning-rainy': ['⛈️', 'Gewitter mit Regen'], 'partlycloudy': ['⛅', 'Teils bewölkt'],
+  'pouring': ['🌧️', 'Starkregen'], 'rainy': ['🌦️', 'Regen'], 'snowy': ['❄️', 'Schnee'],
+  'snowy-rainy': ['🌨️', 'Schneeregen'], 'sunny': ['☀️', 'Sonnig'], 'windy': ['💨', 'Windig'],
+  'windy-variant': ['💨', 'Windig']
+};
+function compass(deg) {
+  if (typeof deg !== 'number') return '';
+  return ['N', 'NO', 'O', 'SO', 'S', 'SW', 'W', 'NW'][Math.round(deg / 45) % 8];
+}
+function updateWeather() {
+  const eid = WETTER || Object.keys(S).find((e) => e.startsWith('weather.'));
+  const box = $('#weather');
+  if (!eid || !S[eid]) { box.hidden = true; return; }
+  const st = S[eid], a = st.attributes || {};
+  const c = WCOND[st.state] || ['🌡️', st.state];
+  $('#wIco').textContent = c[0];
+  $('#wTemp').textContent = typeof a.temperature === 'number' ? Math.round(a.temperature * 10) / 10 + (a.temperature_unit || '°C') : '–';
+  $('#wCond').textContent = c[1];
+  const rows = [];
+  if (a.wind_speed != null) rows.push(['Wind', Math.round(a.wind_speed) + ' ' + (a.wind_speed_unit || 'km/h') + (compass(a.wind_bearing) ? ' ' + compass(a.wind_bearing) : '')]);
+  if (a.humidity != null) rows.push(['Feuchte', Math.round(a.humidity) + ' %']);
+  if (a.pressure != null) rows.push(['Druck', Math.round(a.pressure) + ' ' + (a.pressure_unit || 'hPa')]);
+  $('#wDet').innerHTML = rows.map((r) => '<span>' + r[0] + '</span><b>' + r[1] + '</b>').join('');
+  box.hidden = false;
+}
+
+const KEY = 'steuerung_tokens_v1';
+const TABKEY = 'steuerung_tab_v1';
+const ORIGIN = location.origin;
+const CLIENT_ID = ORIGIN + '/';
+const REDIRECT = ORIGIN + location.pathname;
+const $ = (s) => document.querySelector(s);
+
+let S = {}, AREAS = [], cards = {}, current = 'alle';
+let ws = null, wsId = 0, tokens = null, userName = '', retry = 0, haveStates = false, haveAreas = false;
+
+const P = {
+  light: 'M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7z',
+  switch: 'M16.01 7L16 3h-2v4h-4V3H8v4h-.01C7 6.99 6 7.99 6 8.99v5.49L9.5 18v3h5v-3l3.5-3.51v-5.5c0-1-1-2-1.99-1.99z',
+  cover: 'M3 3v18h18V3H3zm8 16H5v-6h6v6zm0-8H5V5h6v6zm8 8h-6v-6h6v6zm0-8h-6V5h6v6z',
+  scene: 'M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12l-5.5-2.5zM19 15l-1.25 2.75L15 19l2.75 1.25L19 23l1.25-2.75L23 19l-2.75-1.25L19 15z',
+  script: 'M8 5v14l11-7z',
+  input_boolean: 'M16.01 7L16 3h-2v4h-4V3H8v4h-.01C7 6.99 6 7.99 6 8.99v5.49L9.5 18v3h5v-3l3.5-3.51v-5.5c0-1-1-2-1.99-1.99z',
+};
+const svg = (dom) => '<svg viewBox="0 0 24 24"><path d="' + (P[dom] || P.switch) + '"/></svg>';
+
+/* ---------- Anmeldung (OAuth über Home Assistant, pro Benutzer) ---------- */
+async function tokenRequest(body) {
+  const r = await fetch('/auth/token', { method: 'POST', body: new URLSearchParams(body) });
+  if (!r.ok) throw new Error('Token ' + r.status);
+  return r.json();
+}
+function saveTokens(t) { localStorage.setItem(KEY, JSON.stringify(t)); }
+function goLogin() {
+  localStorage.removeItem(KEY);
+  location.href = '/auth/authorize?' + new URLSearchParams({
+    client_id: CLIENT_ID, redirect_uri: REDIRECT, state: btoa(REDIRECT)
+  });
+}
+async function getTokens() {
+  const p = new URLSearchParams(location.search);
+  if (p.get('code')) {
+    const t = await tokenRequest({ grant_type: 'authorization_code', code: p.get('code'), client_id: CLIENT_ID });
+    t.expires = Date.now() + t.expires_in * 1000;
+    saveTokens(t);
+    history.replaceState({}, '', REDIRECT);
+    return t;
+  }
+  let t = null;
+  try { t = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
+  if (!t) { goLogin(); return new Promise(() => {}); }
+  if (Date.now() > t.expires - 30000) {
+    try {
+      const n = await tokenRequest({ grant_type: 'refresh_token', refresh_token: t.refresh_token, client_id: CLIENT_ID });
+      t = Object.assign({}, t, n, { expires: Date.now() + n.expires_in * 1000 });
+      saveTokens(t);
+    } catch (e) { goLogin(); return new Promise(() => {}); }
+  }
+  return t;
+}
+
+/* ---------- Verbindung ---------- */
+function send(msg) { msg.id = ++wsId; ws.send(JSON.stringify(msg)); return msg.id; }
+function call(domain, service, data, eid) {
+  if (!ws || ws.readyState !== 1) return;
+  const m = { type: 'call_service', domain, service, service_data: data || {} };
+  if (eid) m.target = { entity_id: eid };
+  send(m);
+}
+function setStatus(ok, text) {
+  $('#dot').className = 'dot' + (ok ? ' ok' : '');
+  $('#stxt').textContent = text;
+}
+
+const TEMPLATE = "{% set ns = namespace(r=[]) %}{% for a in areas() %}{% set ns.r = ns.r + [{'id': a, 'name': area_name(a), 'entities': area_entities(a)}] %}{% endfor %}{{ ns.r | to_json }}";
+
+async function connect() {
+  try { tokens = await getTokens(); } catch (e) { showMsg('Anmeldung fehlgeschlagen.<br><b>' + e.message + '</b>'); return; }
+  const proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
+  ws = new WebSocket(proto + location.host + '/api/websocket');
+  let idStates = 0, idUser = 0, idTpl = 0;
+  ws.onmessage = (ev) => {
+    const m = JSON.parse(ev.data);
+    if (m.type === 'auth_required') {
+      ws.send(JSON.stringify({ type: 'auth', access_token: tokens.access_token }));
+    } else if (m.type === 'auth_invalid') {
+      goLogin();
+    } else if (m.type === 'auth_ok') {
+      retry = 0; haveStates = false; haveAreas = false;
+      setStatus(true, 'verbunden');
+      idStates = send({ type: 'get_states' });
+      idUser = send({ type: 'auth/current_user' });
+      idTpl = send({ type: 'render_template', template: TEMPLATE, timeout: 8 });
+      send({ type: 'subscribe_events', event_type: 'state_changed' });
+    } else if (m.type === 'result' && m.id === idStates && m.success) {
+      S = {}; m.result.forEach((s) => (S[s.entity_id] = s));
+      haveStates = true; maybeBuild();
+    } else if (m.type === 'result' && m.id === idTpl && !m.success) {
+      haveAreas = true; AREAS = []; maybeBuild();
+    } else if (m.type === 'event' && m.id === idTpl) {
+      let r = m.event.result;
+      try { if (typeof r === 'string') r = JSON.parse(r); } catch (e) { r = []; }
+      AREAS = Array.isArray(r) ? r : [];
+      haveAreas = true; maybeBuild();
+    } else if (m.type === 'result' && m.id === idUser && m.success) {
+      userName = m.result.name || '';
+      $('#hello').textContent = new Date().toLocaleDateString('de-AT', { weekday: 'long', day: 'numeric', month: 'long' });
+      $('#greet').textContent = greeting() + (userName ? ', ' + userName.split(' ')[0] : '');
+      $('#who').textContent = userName ? 'Angemeldet als ' + userName : '';
+    } else if (m.type === 'event' && m.event && m.event.event_type === 'state_changed') {
+      const d = m.event.data;
+      if (d.new_state) {
+        S[d.entity_id] = d.new_state;
+        if (cards[d.entity_id]) cards[d.entity_id].update(d.new_state);
+        updateSummary();
+        if (d.entity_id.startsWith('weather.')) updateWeather();
+      }
+    }
+  };
+  ws.onclose = () => {
+    setStatus(false, 'getrennt');
+    retry = Math.min(retry + 1, 6);
+    setTimeout(connect, retry * 1500);
+  };
+  ws.onerror = () => { try { ws.close(); } catch (e) {} };
+}
+function greeting() {
+  const h = new Date().getHours();
+  return h < 5 ? 'Gute Nacht' : h < 11 ? 'Guten Morgen' : h < 17 ? 'Guten Tag' : h < 22 ? 'Guten Abend' : 'Gute Nacht';
+}
+
+/* ---------- Oberfläche ---------- */
+function showMsg(html) { const m = $('#msg'); m.innerHTML = html; m.hidden = false; }
+
+function visible(eid) {
+  const dom = eid.split('.')[0];
+  return S[eid] && AUTO_DOMAINS.includes(dom) && !VERSTECKEN.includes(eid) && !AUSSCHLUSS.some((rx) => rx.test(eid));
+}
+
+function rooms() {
+  const used = new Set(), list = [];
+  AREAS.slice().sort((a, b) => a.name.localeCompare(b.name, 'de')).forEach((a) => {
+    const e = (a.entities || []).filter(visible);
+    e.forEach((x) => used.add(x));
+    if (e.length) list.push({ id: a.id, name: a.name, entities: sortEnt(e) });
+  });
+  const rest = Object.keys(S).filter((e) => visible(e) && !used.has(e));
+  if (rest.length) list.push({ id: 'weitere', name: 'Weitere', entities: sortEnt(rest) });
+  return list;
+}
+function sortEnt(e) {
+  const o = { light: 0, switch: 1, cover: 2, scene: 3, script: 4, input_boolean: 5 };
+  return e.slice().sort((a, b) => (o[a.split('.')[0]] - o[b.split('.')[0]]) || a.localeCompare(b));
+}
+function entitiesOf(id) {
+  const rs = rooms();
+  if (id === 'alle') return sortEnt([].concat(...rs.map((r) => r.entities)));
+  const r = rs.find((x) => x.id === id);
+  return r ? r.entities : [];
+}
+
+function makeCard(eid) {
+  const dom = eid.split('.')[0];
+  const el = document.createElement('div');
+  el.className = 'tile';
+  el.innerHTML = '<div class="row"><div class="ico"></div><div class="ctl"></div></div><div class="spacer"></div><div><div class="nm"></div><div class="sub"></div></div><div class="extra"></div>';
+  const ico = el.querySelector('.ico'), nm = el.querySelector('.nm'), sub = el.querySelector('.sub');
+  const ctl = el.querySelector('.ctl'), extra = el.querySelector('.extra');
+  ico.innerHTML = svg(dom);
+  let slider = null, sv = null;
+
+  if (dom === 'light' || dom === 'switch' || dom === 'input_boolean') {
+    const t = document.createElement('button');
+    t.className = 'tog'; t.setAttribute('aria-label', 'Ein/Aus');
+    ctl.appendChild(t);
+    const tog = (e) => { e.stopPropagation(); call(dom, 'toggle', {}, eid); };
+    t.onclick = tog; ico.onclick = tog;
+  }
+  if (dom === 'scene' || dom === 'script') {
+    const b = document.createElement('button');
+    b.className = 'go'; b.textContent = 'Starten';
+    b.onclick = () => call(dom, 'turn_on', {}, eid);
+    ctl.appendChild(b);
+  }
+  if (dom === 'cover') {
+    extra.innerHTML = '<div class="btns"><button class="btn" data-s="open_cover">▲</button><button class="btn" data-s="stop_cover">■</button><button class="btn" data-s="close_cover">▼</button></div>';
+    extra.querySelectorAll('button').forEach((b) => (b.onclick = () => call('cover', b.dataset.s, {}, eid)));
+  }
+  if (dom === 'light') {
+    slider = document.createElement('input');
+    slider.type = 'range'; slider.min = 1; slider.max = 100; slider.step = 1;
+    slider.oninput = () => { sub.textContent = slider.value + ' %'; };
+    slider.onchange = () => call('light', 'turn_on', { brightness_pct: Number(slider.value) }, eid);
+    extra.appendChild(slider);
+  }
+
+  const DE = { on: 'An', off: 'Aus', unavailable: 'Nicht erreichbar', unknown: 'Unbekannt', open: 'Offen', closed: 'Geschlossen', opening: 'Öffnet …', closing: 'Schließt …' };
+  function update(st) {
+    const a = st.attributes || {};
+    nm.textContent = UMBENENNEN[eid] || a.friendly_name || eid;
+    const on = st.state === 'on' || st.state === 'open' || st.state === 'opening';
+    el.classList.toggle('on', on && dom !== 'scene' && dom !== 'script');
+    el.classList.toggle('unavailable', st.state === 'unavailable');
+    let txt = DE[st.state] || st.state;
+    if (dom === 'light' && st.state === 'on' && typeof a.brightness === 'number') {
+      txt = Math.round((a.brightness / 255) * 100) + ' %';
+    }
+    if (dom === 'cover' && typeof a.current_position === 'number') txt += ' · ' + a.current_position + ' %';
+    if (dom === 'scene' || dom === 'script') txt = 'Szene';
+    sub.textContent = txt;
+    if (slider) {
+      const modes = a.supported_color_modes || [];
+      const dimmable = modes.some((m) => m !== 'onoff');
+      const show = dimmable && st.state === 'on';
+      extra.hidden = !show;
+      if (typeof a.brightness === 'number' && document.activeElement !== slider) {
+        slider.value = Math.max(1, Math.round((a.brightness / 255) * 100));
+      }
+    }
+  }
+  return { el, update };
+}
+
+function renderTabs() {
+  const rs = rooms();
+  const tabs = $('#tabs'); tabs.innerHTML = '';
+  const mk = (id, name) => {
+    const b = document.createElement('button');
+    b.className = 'tab' + (current === id ? ' act' : '');
+    b.textContent = name;
+    b.onclick = () => { current = id; try { localStorage.setItem(TABKEY, id); } catch (e) {} renderTabs(); renderGrid(); };
+    tabs.appendChild(b);
+  };
+  mk('alle', 'Alle');
+  rs.forEach((r) => mk(r.id, r.name));
+}
+function renderGrid() {
+  const g = $('#grid'); g.innerHTML = ''; cards = {};
+  const e = entitiesOf(current);
+  e.forEach((eid) => { const c = makeCard(eid); cards[eid] = c; c.update(S[eid]); g.appendChild(c.el); });
+  if (!e.length) g.innerHTML = '<div style="grid-column:1/-1;color:var(--muted);text-align:center;padding:40px 0">Keine Geräte in diesem Raum.</div>';
+  updateSummary();
+}
+function lightsOn(list) { return list.filter((e) => e.startsWith('light.') && S[e] && S[e].state === 'on'); }
+function updateSummary() {
+  const all = entitiesOf('alle');
+  const on = lightsOn(all).length;
+  $('#sumBig').textContent = on === 0 ? 'Alle Lichter aus' : on + (on === 1 ? ' Licht an' : ' Lichter an');
+  $('#sumSmall').textContent = all.filter((e) => e.startsWith('light.')).length + ' Lichter insgesamt';
+}
+function maybeBuild() {
+  if (!haveStates || !haveAreas) return;
+  $('#msg').hidden = true; $('#app').hidden = false; $('#logout').hidden = false;
+  let saved = 'alle'; try { saved = localStorage.getItem(TABKEY) || 'alle'; } catch (e) {}
+  current = (saved === 'alle' || rooms().some((r) => r.id === saved)) ? saved : 'alle';
+  renderTabs(); renderGrid(); updateWeather();
+  if (!rooms().length) { $('#app').hidden = true; showMsg('Keine Geräte gefunden.'); }
+}
+
+$('#allOff').onclick = () => {
+  const l = lightsOn(entitiesOf(current === 'alle' ? 'alle' : current));
+  if (l.length) call('light', 'turn_off', {}, l);
+};
+$('#logout').onclick = () => { localStorage.removeItem(KEY); location.reload(); };
+connect();
+</script>
+</body>
+</html>
