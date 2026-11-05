@@ -81,6 +81,11 @@
   .weather .wd{margin-left:auto;display:grid;grid-template-columns:auto auto;gap:4px 14px;font-size:13px;color:var(--muted);text-align:right}
   .weather .wd b{color:var(--text);font-weight:600}
 
+  #toast{position:fixed;left:50%;bottom:max(24px,env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);
+    background:#3A1D22;border:1px solid #7A2F38;color:#FFD7DB;padding:12px 16px;border-radius:14px;font-size:14px;max-width:90vw;
+    opacity:0;pointer-events:none;transition:all .25s;z-index:10}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
   footer{margin-top:34px;display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:13px}
   footer button{background:none;border:1px solid var(--line);color:var(--muted);border-radius:12px;padding:8px 14px;font-size:13px;cursor:pointer}
   #msg{text-align:center;color:var(--muted);margin-top:70px;font-size:16px;line-height:1.5;padding:0 12px}
@@ -107,6 +112,7 @@
     <nav class="tabs" id="tabs"></nav>
     <main class="grid" id="grid"></main>
   </div>
+  <div id="toast"></div>
   <footer><span id="who"></span><button id="logout" hidden>Abmelden</button></footer>
 </div>
 
@@ -170,6 +176,7 @@ const CLIENT_ID = ORIGIN + '/';
 const REDIRECT = ORIGIN + location.pathname;
 const $ = (s) => document.querySelector(s);
 
+let pending = {}, toastTimer = null;
 let S = {}, AREAS = [], cards = {}, current = 'alle';
 let ws = null, wsId = 0, tokens = null, userName = '', retry = 0, haveStates = false, haveAreas = false;
 
@@ -224,7 +231,12 @@ function call(domain, service, data, eid) {
   if (!ws || ws.readyState !== 1) return;
   const m = { type: 'call_service', domain, service, service_data: data || {} };
   if (eid) m.target = { entity_id: eid };
-  send(m);
+  const id = send(m);
+  pending[id] = domain + '.' + service + ' ' + (Array.isArray(eid) ? eid.join(', ') : (eid || ''));
+}
+function toast(text) {
+  const t = $('#toast'); t.textContent = text; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 6000);
 }
 function setStatus(ok, text) {
   $('#dot').className = 'dot' + (ok ? ' ok' : '');
@@ -251,6 +263,9 @@ async function connect() {
       idUser = send({ type: 'auth/current_user' });
       idTpl = send({ type: 'render_template', template: TEMPLATE, timeout: 8 });
       send({ type: 'subscribe_events', event_type: 'state_changed' });
+    } else if (m.type === 'result' && pending[m.id]) {
+      if (!m.success) toast('Fehler bei ' + pending[m.id] + ': ' + ((m.error && m.error.message) || 'unbekannt'));
+      delete pending[m.id];
     } else if (m.type === 'result' && m.id === idStates && m.success) {
       S = {}; m.result.forEach((s) => (S[s.entity_id] = s));
       haveStates = true; maybeBuild();
