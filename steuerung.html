@@ -199,11 +199,11 @@ const WETTER_ORT = null; // z. B. { lat: 48.2, lon: 16.37 }
 const BATTERIE_WARNUNG = 20; // Prozent
 // Gruppen (Reiter): kommen aus den Etagen von Home Assistant. Ohne Etage -> 'Sonstiges'.
 // Hier kann ein Raum (Bereichsname) fest einer Gruppe zugeordnet werden:
-const AREA_GRUPPE = { 'Terrasse': 'Terrasse', 'Küche': 'Obergeschoss' };
+const AREA_GRUPPE = { 'Terrasse': 'Terrasse' };
 const GRUPPEN_REIHENFOLGE = ['Obergeschoss', 'Untergeschoss'];
 /* ===================================================================== */
 
-const VERSION = 'v4.5 · 05.11. 20:50';
+const VERSION = 'v4.6 · 05.11. 21:00';
 const KEY = 'steuerung_tokens_v1';
 const TABKEY = 'steuerung_tab_v1';
 const ORIGIN = location.origin;
@@ -780,6 +780,8 @@ $('#allOff').onclick = () => {
 };
 $('#upd').onclick = () => { call('script', 'turn_on', {}, UPDATE_SKRIPT); toast('Aktualisierung gestartet – Seite in 5 Sekunden neu laden', true); };
 $('#ver').textContent = ' · ' + VERSION;
+$('#ver').style.cursor = 'pointer';
+$('#ver').onclick = () => toast('Bereiche: ' + (AREAS.map((a) => a.name + ' → ' + (a.floor || 'keine Etage') + ' (' + (a.entities || []).length + ')').join(' | ') || 'keine'), true);
 $('#logout').onclick = () => { localStorage.removeItem(KEY); location.reload(); };
 connect();
 </script>
