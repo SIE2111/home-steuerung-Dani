@@ -181,9 +181,13 @@ const UPDATE_SKRIPT = 'script.steuerung_aktualisieren';
 // Optional: feste Wetter-Koordinaten (sonst Standort aus Home Assistant)
 const WETTER_ORT = null; // z. B. { lat: 48.2, lon: 16.37 }
 const BATTERIE_WARNUNG = 20; // Prozent
+// Gruppen (Reiter): kommen aus den Etagen von Home Assistant. Ohne Etage -> 'Sonstiges'.
+// Hier kann ein Raum (Bereichsname) fest einer Gruppe zugeordnet werden:
+const AREA_GRUPPE = { 'Terrasse': 'Terrasse' };
+const GRUPPEN_REIHENFOLGE = ['Obergeschoss', 'Untergeschoss'];
 /* ===================================================================== */
 
-const VERSION = 'v4.1 · 05.11. 20:05';
+const VERSION = 'v4.2 · 05.11. 20:15';
 const KEY = 'steuerung_tokens_v1';
 const TABKEY = 'steuerung_tab_v1';
 const ORIGIN = location.origin;
@@ -261,7 +265,7 @@ function setStatus(ok, text) {
 }
 function pollNotes() { if (ws && ws.readyState === 1) idNotes = send({ type: 'persistent_notification/get' }); }
 
-const TEMPLATE = "{% set ns = namespace(r=[]) %}{% for a in areas() %}{% set ns.r = ns.r + [{'id': a, 'name': area_name(a), 'entities': area_entities(a)}] %}{% endfor %}{{ ns.r | to_json }}";
+const TEMPLATE = "{% set ns = namespace(r=[]) %}{% for a in areas() %}{% set f = floor_id(a) %}{% set ns.r = ns.r + [{'id': a, 'name': area_name(a), 'floor': (floor_name(f) if f else none), 'entities': area_entities(a)}] %}{% endfor %}{{ ns.r | to_json }}";
 
 async function connect() {
   try { tokens = await getTokens(); } catch (e) { showMsg('Anmeldung fehlgeschlagen.<br><b>' + esc(e.message) + '</b>'); return; }
@@ -478,11 +482,17 @@ function rooms() {
   AREAS.slice().sort((a, b) => a.name.localeCompare(b.name, 'de')).forEach((a) => {
     const e = (a.entities || []).filter(visible);
     e.forEach((x) => used.add(x));
-    if (e.length) list.push({ id: a.id, name: a.name, entities: sortEnt(e) });
+    if (e.length) list.push({ id: a.id, name: a.name, group: AREA_GRUPPE[a.name] || a.floor || 'Sonstiges', entities: sortEnt(e) });
   });
   const rest = Object.keys(S).filter((e) => visible(e) && !used.has(e));
-  if (rest.length) list.push({ id: 'weitere', name: 'Weitere', entities: sortEnt(rest) });
+  if (rest.length) list.push({ id: 'weitere', name: 'Weitere', group: 'Sonstiges', entities: sortEnt(rest) });
   return list;
+}
+function groups() {
+  const m = {};
+  rooms().forEach((r) => { (m[r.group] = m[r.group] || { id: 'g:' + r.group, name: r.group, rooms: [] }).rooms.push(r); });
+  const rank = (n) => { const i = GRUPPEN_REIHENFOLGE.indexOf(n); return n === 'Sonstiges' ? 99 : n === 'Terrasse' ? 50 : i >= 0 ? i : 10; };
+  return Object.values(m).sort((a, b) => rank(a.name) - rank(b.name) || a.name.localeCompare(b.name, 'de'));
 }
 function szenen() {
   return sortEnt(Object.keys(S).filter((e) => SZENEN_DOMAINS.includes(e.split('.')[0]) && e !== UPDATE_SKRIPT && !VERSTECKEN.includes(e)));
@@ -491,8 +501,8 @@ function entitiesOf(id) {
   const rs = rooms();
   if (id === 'alle') return sortEnt([].concat(...rs.map((r) => r.entities)));
   if (id === 'szenen') return szenen();
-  const r = rs.find((x) => x.id === id);
-  return r ? r.entities : [];
+  const g = groups().find((x) => x.id === id);
+  return g ? [].concat(...g.rooms.map((r) => r.entities)) : [];
 }
 
 function makeCard(eid) {
@@ -554,7 +564,7 @@ function makeCard(eid) {
 }
 
 function renderTabs() {
-  const rs = rooms();
+  const rs = groups();
   const tabs = $('#tabs'); tabs.innerHTML = '';
   const mk = (id, name) => {
     const b = document.createElement('button');
@@ -574,7 +584,14 @@ function renderGrid() {
   if (current === 'zeit') { g.hidden = true; z.hidden = false; renderZeitList(); renderZeitForm(); updateSummary(); return; }
   g.hidden = false; z.hidden = true;
   const e = entitiesOf(current);
-  e.forEach((eid) => { const c = makeCard(eid); cards[eid] = c; c.update(S[eid]); g.appendChild(c.el); });
+  const add = (eid) => { const c = makeCard(eid); cards[eid] = c; c.update(S[eid]); g.appendChild(c.el); };
+  const grp = current.startsWith('g:') ? groups().find((x) => x.id === current) : null;
+  if (grp && grp.rooms.length > 1) {
+    grp.rooms.forEach((r) => {
+      const h = document.createElement('div'); h.className = 'zh'; h.style.gridColumn = '1/-1'; h.textContent = r.name; g.appendChild(h);
+      r.entities.forEach(add);
+    });
+  } else e.forEach(add);
   if (!e.length) g.innerHTML = '<div style="grid-column:1/-1;color:var(--muted);text-align:center;padding:40px 0">Keine Einträge.</div>';
   updateSummary();
 }
@@ -716,7 +733,7 @@ function maybeBuild() {
   $('#msg').hidden = true; $('#app').hidden = false; $('#logout').hidden = false;
   $('#upd').hidden = !S[UPDATE_SKRIPT];
   let saved = 'alle'; try { saved = localStorage.getItem(TABKEY) || 'alle'; } catch (e) {}
-  const valid = ['alle', 'zeit'].concat(rooms().map((r) => r.id)).concat(szenen().length ? ['szenen'] : []);
+  const valid = ['alle', 'zeit'].concat(groups().map((r) => r.id)).concat(szenen().length ? ['szenen'] : []);
   current = valid.includes(saved) ? saved : 'alle';
   renderTabs(); renderGrid(); renderIssues();
   if (!WEATHER) updateWeatherFromEntity();
