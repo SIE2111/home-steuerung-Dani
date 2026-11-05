@@ -108,7 +108,7 @@
   .zdel{background:none;border:1px solid var(--line);color:var(--muted);border-radius:10px;padding:6px 10px;cursor:pointer;font-size:13px}
   .zform{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:16px;display:flex;flex-direction:column;gap:12px}
   .zform label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6px}
-  .zform select,.zform input[type=time],.zform input[type=number]{background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:12px;padding:12px;font-size:16px;width:100%}
+  .zform select,.zform input[type=time],.zform input[type=number]{-webkit-appearance:none;appearance:none;min-width:0;max-width:100%;display:block;text-align:left;background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:12px;padding:12px;font-size:16px;width:100%}
   .days{display:flex;gap:6px;flex-wrap:wrap}
   .day{flex:1;min-width:38px;background:var(--card2);color:var(--muted);border:1px solid var(--line);border-radius:10px;padding:9px 0;font-size:13px;font-weight:600;cursor:pointer;text-align:center}
   .day.on{background:var(--accent);color:#16130B;border-color:var(--accent)}
@@ -183,7 +183,7 @@ const WETTER_ORT = null; // z. B. { lat: 48.2, lon: 16.37 }
 const BATTERIE_WARNUNG = 20; // Prozent
 /* ===================================================================== */
 
-const VERSION = 'v4 · 05.11. 20:00';
+const VERSION = 'v4.1 · 05.11. 20:05';
 const KEY = 'steuerung_tokens_v1';
 const TABKEY = 'steuerung_tab_v1';
 const ORIGIN = location.origin;
@@ -589,6 +589,7 @@ function updateSummary() {
 /* ---------- Zeitsteuerung ---------- */
 const TAGE = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 const TAGE_DE = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+let showPaused = false;
 let zf = { eid: '', act: 'off', pct: 50, time: '22:00', days: [true, true, true, true, true, true, true] };
 
 function renderZeitList() {
@@ -596,7 +597,8 @@ function renderZeitList() {
   const autos = Object.keys(S).filter((e) => e.startsWith('automation.')).sort((a, b) => nameOf(a).localeCompare(nameOf(b), 'de'));
   const scheds = Object.keys(S).filter((e) => e.startsWith('schedule.'));
   let html = '';
-  autos.forEach((e) => {
+  const paused = autos.filter((e) => S[e].state !== 'on');
+  autos.filter((e) => showPaused || S[e].state === 'on').forEach((e) => {
     const st = S[e], a = st.attributes || {}, mine = String(a.id || '').startsWith('steuerung_');
     html += '<div class="zrow ' + (st.state === 'on' ? '' : 'off') + '"><div class="nt">' + esc(nameOf(e).replace(/^Zeitschaltuhr:\s*/, '⏰ ')) +
       '<small>zuletzt: ' + esc(rel(a.last_triggered)) + (st.state === 'on' ? '' : ' · pausiert') + '</small></div>' +
@@ -608,8 +610,10 @@ function renderZeitList() {
     html += '<div class="zrow ' + (st.state === 'on' ? '' : 'off') + '"><div class="nt">🗓️ ' + esc(nameOf(e)) + '<small>' + (st.state === 'on' ? 'aktiv' : 'außerhalb') +
       (a.next_event ? ' · nächste Änderung ' + esc(rel(a.next_event).replace('vor', 'in')) : '') + '</small></div></div>';
   });
-  if (!html) html = '<div style="color:var(--muted);padding:8px 4px">Noch keine Automatisierungen oder Zeitschaltuhren.</div>';
+  if (!html) html = '<div style="color:var(--muted);padding:8px 4px">Keine aktiven Automatisierungen oder Zeitschaltuhren.</div>';
+  if (paused.length) html += '<button class="zdel" id="zpa" style="align-self:flex-start">' + (showPaused ? 'Pausierte ausblenden' : 'Pausierte anzeigen (' + paused.length + ')') + '</button>';
   box.innerHTML = html;
+  if ($('#zpa')) $('#zpa').onclick = () => { showPaused = !showPaused; renderZeitList(); };
   box.querySelectorAll('[data-tg]').forEach((b) => {
     // Schalter-Optik wie bei Geräten: Kreis
     b.style.position = 'relative';
