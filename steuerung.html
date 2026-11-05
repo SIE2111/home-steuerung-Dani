@@ -4,15 +4,17 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Zuhause">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0F1115">
 <title>Zuhause</title>
 <style>
   :root{
     --bg:#0F1115; --card:#1A1D24; --card2:#242833; --line:#2C313D;
-    --text:#F3F4F6; --muted:#8E94A3; --accent:#F7B83D; --accent2:#FF8A3D; --err:#E5646B; --ok:#4CC38A;
+    --text:#F3F4F6; --muted:#8E94A3; --accent:#F7B83D; --accent2:#FF8A3D; --err:#E5646B; --ok:#4CC38A; --warn:#F2B84B;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  [hidden]{display:none!important}
   html,body{margin:0;background:var(--bg);color:var(--text);
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
   body{min-height:100vh;
@@ -26,6 +28,31 @@
   .dot{width:8px;height:8px;border-radius:50%;background:var(--err)}
   .dot.ok{background:var(--ok);box-shadow:0 0 8px var(--ok)}
 
+  /* Wetter */
+  .weather{background:linear-gradient(135deg,#1F2A3D 0%,#1A1D24 70%);border:1px solid var(--line);border-radius:22px;padding:16px 18px;margin-bottom:12px}
+  .wmain{display:flex;align-items:center;gap:14px}
+  .wi{font-size:48px;line-height:1}
+  .wt{font-size:36px;font-weight:750;letter-spacing:-.02em;line-height:1}
+  .wc{font-size:14px;color:var(--muted);margin-top:4px}
+  .wd{margin-left:auto;display:grid;grid-template-columns:auto auto;gap:3px 12px;font-size:13px;color:var(--muted);text-align:right}
+  .wd b{color:var(--text);font-weight:600}
+  .wf{display:flex;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+  .wf div{flex:1;text-align:center;font-size:12px;color:var(--muted)}
+  .wf .e{font-size:24px;margin:4px 0}
+  .wf b{color:var(--text);font-weight:600}
+
+  /* Hinweise */
+  .notes{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:12px 14px;margin-bottom:12px}
+  .notes.bad{border-color:#6A2F36;background:linear-gradient(135deg,#2B1B1F,#1A1D24)}
+  .notes.warn{border-color:#5A4720;background:linear-gradient(135deg,#2B2416,#1A1D24)}
+  .nh{font-size:14px;font-weight:650;display:flex;align-items:center;gap:8px}
+  .nrow{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line);font-size:14px}
+  .nrow:first-of-type{margin-top:8px}
+  .nd{width:9px;height:9px;border-radius:50%;flex:none}
+  .nd.fault{background:var(--err)} .nd.warn{background:var(--warn)} .nd.info{background:#6AA9FF}
+  .nt{flex:1;min-width:0} .nt small{display:block;color:var(--muted);font-size:12px;margin-top:1px}
+  .nx{background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:6px 10px;font-size:12px;cursor:pointer}
+
   .summary{display:flex;align-items:center;justify-content:space-between;background:var(--card);
     border:1px solid var(--line);border-radius:20px;padding:14px 16px;margin-bottom:16px}
   .summary .big{font-size:18px;font-weight:650}
@@ -34,7 +61,7 @@
     padding:10px 16px;font-size:14px;font-weight:600;cursor:pointer}
   .pill:active{background:var(--accent);color:#14161B;border-color:var(--accent)}
 
-  .tabs{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 12px;margin:0 -16px 6px;padding-left:16px;padding-right:16px;
+  .tabs{display:flex;gap:8px;overflow-x:auto;padding:2px 16px 12px;margin:0 -16px 6px;
     scrollbar-width:none;-webkit-overflow-scrolling:touch}
   .tabs::-webkit-scrollbar{display:none}
   .tab{flex:none;background:var(--card);color:var(--muted);border:1px solid var(--line);border-radius:999px;
@@ -61,7 +88,6 @@
   .sub{font-size:13px;color:var(--muted);margin-top:2px}
   .tile.on .sub{color:#E7C985}
   .spacer{flex:1}
-  .slider{display:flex;align-items:center;gap:10px}
   input[type=range]{width:100%;height:30px;-webkit-appearance:none;appearance:none;background:transparent;margin:0}
   input[type=range]::-webkit-slider-runnable-track{height:10px;border-radius:6px;background:rgba(255,255,255,.12)}
   input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:24px;height:24px;margin-top:-7px;border-radius:50%;background:#fff;border:0;box-shadow:0 2px 8px rgba(0,0,0,.4)}
@@ -73,20 +99,29 @@
   .go{background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:12px;padding:10px 14px;font-size:14px;font-weight:600;cursor:pointer}
   .go:active{background:var(--accent);color:#14161B}
 
-  .weather{display:flex;align-items:center;gap:16px;background:linear-gradient(135deg,#1F2A3D 0%,#1A1D24 70%);
-    border:1px solid var(--line);border-radius:22px;padding:16px 18px;margin-bottom:12px}
-  .weather .wi{font-size:46px;line-height:1}
-  .weather .wt{font-size:34px;font-weight:750;letter-spacing:-.02em;line-height:1}
-  .weather .wc{font-size:14px;color:var(--muted);margin-top:4px}
-  .weather .wd{margin-left:auto;display:grid;grid-template-columns:auto auto;gap:4px 14px;font-size:13px;color:var(--muted);text-align:right}
-  .weather .wd b{color:var(--text);font-weight:600}
+  /* Zeit */
+  .zh{font-size:13px;color:var(--muted);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin:6px 4px 10px}
+  .zl{display:flex;flex-direction:column;gap:8px;margin-bottom:18px}
+  .zrow{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:12px 14px}
+  .zrow .nt{font-size:15px;font-weight:600}
+  .zrow.off .nt{opacity:.55}
+  .zdel{background:none;border:1px solid var(--line);color:var(--muted);border-radius:10px;padding:6px 10px;cursor:pointer;font-size:13px}
+  .zform{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:16px;display:flex;flex-direction:column;gap:12px}
+  .zform label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6px}
+  .zform select,.zform input[type=time],.zform input[type=number]{background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:12px;padding:12px;font-size:16px;width:100%}
+  .days{display:flex;gap:6px;flex-wrap:wrap}
+  .day{flex:1;min-width:38px;background:var(--card2);color:var(--muted);border:1px solid var(--line);border-radius:10px;padding:9px 0;font-size:13px;font-weight:600;cursor:pointer;text-align:center}
+  .day.on{background:var(--accent);color:#16130B;border-color:var(--accent)}
+  .primary{background:var(--accent);color:#16130B;border:0;border-radius:14px;padding:13px;font-size:16px;font-weight:700;cursor:pointer}
 
   #toast{position:fixed;left:50%;bottom:max(24px,env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);
     background:#3A1D22;border:1px solid #7A2F38;color:#FFD7DB;padding:12px 16px;border-radius:14px;font-size:14px;max-width:90vw;
     opacity:0;pointer-events:none;transition:all .25s;z-index:10}
   #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  #toast.okk{background:#16301F;border-color:#2F7A45;color:#D2F5DD}
 
-  footer{margin-top:34px;display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:13px}
+  footer{margin-top:34px;display:flex;justify-content:space-between;align-items:center;gap:10px;color:var(--muted);font-size:13px}
+  footer .fb{display:flex;gap:8px}
   footer button{background:none;border:1px solid var(--line);color:var(--muted);border-radius:12px;padding:8px 14px;font-size:13px;cursor:pointer}
   #msg{text-align:center;color:var(--muted);margin-top:70px;font-size:16px;line-height:1.5;padding:0 12px}
   #msg b{color:var(--text)}
@@ -100,27 +135,32 @@
   </header>
   <div id="msg">Anmeldung bei Home Assistant …</div>
   <div id="app" hidden>
-    <div class="weather" id="weather" hidden>
-      <div class="wi" id="wIco"></div>
-      <div><div class="wt" id="wTemp"></div><div class="wc" id="wCond"></div></div>
-      <div class="wd" id="wDet"></div>
-    </div>
+    <div class="weather" id="weather" hidden></div>
+    <div class="notes" id="notes" hidden></div>
     <div class="summary">
       <div><div class="big" id="sumBig"></div><div class="small" id="sumSmall"></div></div>
       <button class="pill" id="allOff">Alles aus</button>
     </div>
     <nav class="tabs" id="tabs"></nav>
     <main class="grid" id="grid"></main>
+    <section id="zeit" hidden>
+      <div class="zh">Zeitschaltuhren &amp; Automatisierungen</div>
+      <div class="zl" id="zlist"></div>
+      <div class="zh">Neue Zeitschaltuhr</div>
+      <div class="zform" id="zform"></div>
+    </section>
   </div>
   <div id="toast"></div>
-  <footer><span id="who"></span><span id="ver" style="opacity:.6"></span><button id="logout" hidden>Abmelden</button></footer>
+  <footer>
+    <span><span id="who"></span><span id="ver" style="opacity:.6"></span></span>
+    <span class="fb"><button id="upd" hidden>Aktualisieren</button><button id="logout" hidden>Abmelden</button></span>
+  </footer>
 </div>
 
 <script>
 /* =====================================================================
    EINSTELLUNGEN (optional) – die Räume kommen automatisch aus den
-   Bereichen von Home Assistant. Hier kannst du Geräte umbenennen oder
-   ausblenden. Entitäts-IDs: Einstellungen → Geräte & Dienste → Entitäten.
+   Bereichen von Home Assistant.
    ===================================================================== */
 const UMBENENNEN = {
   // 'light.deckenlicht_kuche_dimmbar_l1': 'Decke',
@@ -129,57 +169,33 @@ const VERSTECKEN = [
   'switch.0x18690afffe69d31e',
   // 'light.deckenlicht_kuche_dimmbar_l2',
 ];
-// Diese Entitäten werden nie angezeigt (Technik)
+// Diese Entitäten werden nie als Geräte-Kachel angezeigt (Technik)
 const AUSSCHLUSS = [
   /^switch\.(szenenschalter|schalter)_/,
   /permit_join|bridge/i,
   /backlight|vibration|momentary|countdown|indicator|induction|power_on|child_lock|led_|relay_status/i,
 ];
-const AUTO_DOMAINS = ['light', 'switch', 'cover', 'scene', 'script', 'input_boolean'];
-// Wetter-Entität. Leer lassen = die erste gefundene "weather."-Entität wird genutzt.
-const WETTER = '';
+const GERAETE_DOMAINS = ['light', 'switch', 'cover', 'input_boolean'];
+const SZENEN_DOMAINS = ['scene', 'script'];
+const UPDATE_SKRIPT = 'script.steuerung_aktualisieren';
+// Optional: feste Wetter-Koordinaten (sonst Standort aus Home Assistant)
+const WETTER_ORT = null; // z. B. { lat: 48.2, lon: 16.37 }
+const BATTERIE_WARNUNG = 20; // Prozent
 /* ===================================================================== */
 
-const WCOND = {
-  'clear-night': ['🌙', 'Klar'], 'cloudy': ['☁️', 'Bewölkt'], 'exceptional': ['⚠️', 'Außergewöhnlich'],
-  'fog': ['🌫️', 'Nebel'], 'hail': ['🌨️', 'Hagel'], 'lightning': ['🌩️', 'Gewitter'],
-  'lightning-rainy': ['⛈️', 'Gewitter mit Regen'], 'partlycloudy': ['⛅', 'Teils bewölkt'],
-  'pouring': ['🌧️', 'Starkregen'], 'rainy': ['🌦️', 'Regen'], 'snowy': ['❄️', 'Schnee'],
-  'snowy-rainy': ['🌨️', 'Schneeregen'], 'sunny': ['☀️', 'Sonnig'], 'windy': ['💨', 'Windig'],
-  'windy-variant': ['💨', 'Windig']
-};
-function compass(deg) {
-  if (typeof deg !== 'number') return '';
-  return ['N', 'NO', 'O', 'SO', 'S', 'SW', 'W', 'NW'][Math.round(deg / 45) % 8];
-}
-function updateWeather() {
-  const eid = WETTER || Object.keys(S).find((e) => e.startsWith('weather.'));
-  const box = $('#weather');
-  if (!eid || !S[eid]) { box.hidden = true; return; }
-  const st = S[eid], a = st.attributes || {};
-  const c = WCOND[st.state] || ['🌡️', st.state];
-  $('#wIco').textContent = c[0];
-  $('#wTemp').textContent = typeof a.temperature === 'number' ? Math.round(a.temperature * 10) / 10 + (a.temperature_unit || '°C') : '–';
-  $('#wCond').textContent = c[1];
-  const rows = [];
-  if (a.wind_speed != null) rows.push(['Wind', Math.round(a.wind_speed) + ' ' + (a.wind_speed_unit || 'km/h') + (compass(a.wind_bearing) ? ' ' + compass(a.wind_bearing) : '')]);
-  if (a.humidity != null) rows.push(['Feuchte', Math.round(a.humidity) + ' %']);
-  if (a.pressure != null) rows.push(['Druck', Math.round(a.pressure) + ' ' + (a.pressure_unit || 'hPa')]);
-  $('#wDet').innerHTML = rows.map((r) => '<span>' + r[0] + '</span><b>' + r[1] + '</b>').join('');
-  box.hidden = false;
-}
-
+const VERSION = 'v4 · 05.11. 20:00';
 const KEY = 'steuerung_tokens_v1';
 const TABKEY = 'steuerung_tab_v1';
 const ORIGIN = location.origin;
 const CLIENT_ID = ORIGIN + '/';
 const REDIRECT = ORIGIN + location.pathname;
 const $ = (s) => document.querySelector(s);
+const esc = (t) => String(t == null ? '' : t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-const VERSION = 'v3 · 05.11. 19:10';
 let pending = {}, toastTimer = null;
-let S = {}, AREAS = [], cards = {}, current = 'alle';
+let S = {}, AREAS = [], NOTES = [], WEATHER = null, HACFG = null, cards = {}, current = 'alle';
 let ws = null, wsId = 0, tokens = null, userName = '', retry = 0, haveStates = false, haveAreas = false;
+let idNotes = 0, notesTimer = null, weatherTimer = null, issueTimer = null;
 
 const P = {
   light: 'M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7z',
@@ -232,26 +248,26 @@ function call(domain, service, data, eid) {
   if (!ws || ws.readyState !== 1) { toast('Keine Verbindung zu Home Assistant'); return; }
   const m = { type: 'call_service', domain, service, service_data: data || {} };
   if (eid) m.target = { entity_id: eid };
-  console.log('[steuerung] sende', JSON.stringify(m));
   const id = send(m);
   pending[id] = domain + '.' + service + ' ' + (Array.isArray(eid) ? eid.join(', ') : (eid || ''));
 }
-function toast(text) {
-  const t = $('#toast'); t.textContent = text; t.classList.add('show');
+function toast(text, ok) {
+  const t = $('#toast'); t.textContent = text; t.classList.toggle('okk', !!ok); t.classList.add('show');
   clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 6000);
 }
 function setStatus(ok, text) {
   $('#dot').className = 'dot' + (ok ? ' ok' : '');
   $('#stxt').textContent = text;
 }
+function pollNotes() { if (ws && ws.readyState === 1) idNotes = send({ type: 'persistent_notification/get' }); }
 
 const TEMPLATE = "{% set ns = namespace(r=[]) %}{% for a in areas() %}{% set ns.r = ns.r + [{'id': a, 'name': area_name(a), 'entities': area_entities(a)}] %}{% endfor %}{{ ns.r | to_json }}";
 
 async function connect() {
-  try { tokens = await getTokens(); } catch (e) { showMsg('Anmeldung fehlgeschlagen.<br><b>' + e.message + '</b>'); return; }
+  try { tokens = await getTokens(); } catch (e) { showMsg('Anmeldung fehlgeschlagen.<br><b>' + esc(e.message) + '</b>'); return; }
   const proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
   ws = new WebSocket(proto + location.host + '/api/websocket');
-  let idStates = 0, idUser = 0, idTpl = 0;
+  let idStates = 0, idUser = 0, idTpl = 0, idCfg = 0;
   ws.onmessage = (ev) => {
     const m = JSON.parse(ev.data);
     if (m.type === 'auth_required') {
@@ -263,8 +279,11 @@ async function connect() {
       setStatus(true, 'verbunden');
       idStates = send({ type: 'get_states' });
       idUser = send({ type: 'auth/current_user' });
+      idCfg = send({ type: 'get_config' });
       idTpl = send({ type: 'render_template', template: TEMPLATE, timeout: 8 });
       send({ type: 'subscribe_events', event_type: 'state_changed' });
+      pollNotes();
+      clearInterval(notesTimer); notesTimer = setInterval(pollNotes, 60000);
     } else if (m.type === 'result' && pending[m.id]) {
       console.log('[steuerung] antwort', pending[m.id], JSON.stringify(m));
       if (!m.success) toast('Fehler bei ' + pending[m.id] + ': ' + ((m.error && m.error.message) || 'unbekannt'));
@@ -272,6 +291,12 @@ async function connect() {
     } else if (m.type === 'result' && m.id === idStates && m.success) {
       S = {}; m.result.forEach((s) => (S[s.entity_id] = s));
       haveStates = true; maybeBuild();
+    } else if (m.type === 'result' && m.id === idCfg && m.success) {
+      HACFG = m.result; loadWeather();
+    } else if (m.type === 'result' && m.id === idNotes) {
+      const r = m.success ? m.result : null;
+      NOTES = !r ? [] : Array.isArray(r) ? r : Object.keys(r).map((k) => Object.assign({ notification_id: k }, r[k]));
+      scheduleIssues();
     } else if (m.type === 'result' && m.id === idTpl && !m.success) {
       haveAreas = true; AREAS = []; maybeBuild();
     } else if (m.type === 'event' && m.id === idTpl) {
@@ -290,8 +315,9 @@ async function connect() {
         S[d.entity_id] = d.new_state;
         if (cards[d.entity_id]) cards[d.entity_id].update(d.new_state);
         updateSummary();
-        if (d.entity_id.startsWith('weather.')) updateWeather();
-      }
+        scheduleIssues();
+        if (current === 'zeit' && (d.entity_id.startsWith('automation.') || d.entity_id.startsWith('schedule.'))) renderZeitList();
+      } else if (d.entity_id) { delete S[d.entity_id]; scheduleIssues(); if (current === 'zeit') renderZeitList(); }
     }
   };
   ws.onclose = () => {
@@ -306,14 +332,147 @@ function greeting() {
   return h < 5 ? 'Gute Nacht' : h < 11 ? 'Guten Morgen' : h < 17 ? 'Guten Tag' : h < 22 ? 'Guten Abend' : 'Gute Nacht';
 }
 
-/* ---------- Oberfläche ---------- */
-function showMsg(html) { const m = $('#msg'); m.innerHTML = html; m.hidden = false; }
-
-function visible(eid) {
-  const dom = eid.split('.')[0];
-  return S[eid] && AUTO_DOMAINS.includes(dom) && !VERSTECKEN.includes(eid) && !AUSSCHLUSS.some((rx) => rx.test(eid));
+/* ---------- Wetter (Open-Meteo, braucht keine Integration) ---------- */
+const WMO = {
+  0: ['☀️', 'Klar'], 1: ['🌤️', 'Überwiegend klar'], 2: ['⛅', 'Teils bewölkt'], 3: ['☁️', 'Bedeckt'],
+  45: ['🌫️', 'Nebel'], 48: ['🌫️', 'Reifnebel'],
+  51: ['🌦️', 'Leichter Nieselregen'], 53: ['🌦️', 'Nieselregen'], 55: ['🌧️', 'Starker Nieselregen'],
+  56: ['🌧️', 'Gefrierender Nieselregen'], 57: ['🌧️', 'Gefrierender Nieselregen'],
+  61: ['🌦️', 'Leichter Regen'], 63: ['🌧️', 'Regen'], 65: ['🌧️', 'Starker Regen'],
+  66: ['🌧️', 'Gefrierender Regen'], 67: ['🌧️', 'Gefrierender Regen'],
+  71: ['🌨️', 'Leichter Schneefall'], 73: ['🌨️', 'Schneefall'], 75: ['❄️', 'Starker Schneefall'], 77: ['❄️', 'Schneegriesel'],
+  80: ['🌦️', 'Leichte Schauer'], 81: ['🌧️', 'Schauer'], 82: ['⛈️', 'Heftige Schauer'],
+  85: ['🌨️', 'Schneeschauer'], 86: ['❄️', 'Starke Schneeschauer'],
+  95: ['⛈️', 'Gewitter'], 96: ['⛈️', 'Gewitter mit Hagel'], 99: ['⛈️', 'Starkes Gewitter']
+};
+const wmo = (c, day) => (c === 0 && day === 0 ? ['🌙', 'Klar'] : WMO[c] || ['🌡️', '–']);
+function compass(deg) {
+  if (typeof deg !== 'number') return '';
+  return ['N', 'NO', 'O', 'SO', 'S', 'SW', 'W', 'NW'][Math.round(deg / 45) % 8];
+}
+async function loadWeather() {
+  clearTimeout(weatherTimer); weatherTimer = setTimeout(loadWeather, 15 * 60 * 1000);
+  const lat = WETTER_ORT ? WETTER_ORT.lat : HACFG && HACFG.latitude;
+  const lon = WETTER_ORT ? WETTER_ORT.lon : HACFG && HACFG.longitude;
+  if (typeof lat !== 'number' || typeof lon !== 'number') { updateWeatherFromEntity(); return; }
+  try {
+    const u = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon +
+      '&current=temperature_2m,apparent_temperature,relative_humidity_2m,precipitation,weather_code,wind_speed_10m,wind_direction_10m,is_day' +
+      '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=4&wind_speed_unit=kmh';
+    const r = await fetch(u);
+    if (!r.ok) throw new Error('wetter ' + r.status);
+    WEATHER = await r.json();
+    renderWeather();
+  } catch (e) { console.log('[steuerung] Wetter nicht verfügbar', e); updateWeatherFromEntity(); }
+}
+function renderWeather() {
+  const box = $('#weather'), w = WEATHER;
+  if (!w || !w.current) { box.hidden = true; return; }
+  const c = w.current, ic = wmo(c.weather_code, c.is_day);
+  let html = '<div class="wmain"><div class="wi">' + ic[0] + '</div><div><div class="wt">' + Math.round(c.temperature_2m) + '°</div><div class="wc">' + esc(ic[1]) + '</div></div>' +
+    '<div class="wd"><span>Gefühlt</span><b>' + Math.round(c.apparent_temperature) + '°</b>' +
+    '<span>Wind</span><b>' + Math.round(c.wind_speed_10m) + ' km/h ' + compass(c.wind_direction_10m) + '</b>' +
+    '<span>Feuchte</span><b>' + Math.round(c.relative_humidity_2m) + ' %</b>' +
+    '<span>Regen</span><b>' + (c.precipitation || 0) + ' mm</b></div></div>';
+  const d = w.daily;
+  if (d && d.time) {
+    html += '<div class="wf">';
+    for (let i = 1; i < d.time.length; i++) {
+      const day = new Date(d.time[i] + 'T12:00:00').toLocaleDateString('de-AT', { weekday: 'short' });
+      const e = wmo(d.weather_code[i], 1);
+      const rp = d.precipitation_probability_max && d.precipitation_probability_max[i];
+      html += '<div>' + esc(day) + '<div class="e">' + e[0] + '</div><b>' + Math.round(d.temperature_2m_max[i]) + '°</b> / ' + Math.round(d.temperature_2m_min[i]) + '°' + (rp != null ? '<br>' + rp + ' %' : '') + '</div>';
+    }
+    html += '</div>';
+  }
+  box.innerHTML = html; box.hidden = false;
+}
+function updateWeatherFromEntity() {
+  const eid = Object.keys(S).find((e) => e.startsWith('weather.'));
+  const box = $('#weather');
+  if (!eid) { if (!WEATHER) box.hidden = true; return; }
+  const st = S[eid], a = st.attributes || {};
+  const MAP = { 'clear-night': ['🌙', 'Klar'], cloudy: ['☁️', 'Bewölkt'], fog: ['🌫️', 'Nebel'], hail: ['🌨️', 'Hagel'], lightning: ['🌩️', 'Gewitter'],
+    'lightning-rainy': ['⛈️', 'Gewitter'], partlycloudy: ['⛅', 'Teils bewölkt'], pouring: ['🌧️', 'Starkregen'], rainy: ['🌦️', 'Regen'],
+    snowy: ['❄️', 'Schnee'], 'snowy-rainy': ['🌨️', 'Schneeregen'], sunny: ['☀️', 'Sonnig'], windy: ['💨', 'Windig'] };
+  const c = MAP[st.state] || ['🌡️', st.state];
+  box.innerHTML = '<div class="wmain"><div class="wi">' + c[0] + '</div><div><div class="wt">' + (typeof a.temperature === 'number' ? Math.round(a.temperature) + '°' : '–') +
+    '</div><div class="wc">' + esc(c[1]) + '</div></div></div>';
+  box.hidden = false;
 }
 
+/* ---------- Hinweise & Störungen ---------- */
+const GERAET_DOM_STOER = ['light', 'switch', 'cover', 'lock', 'climate', 'fan'];
+const STOER_AUSNAHME = /permit_join|bridge|backlight|vibration|momentary|countdown|indicator|induction|power_on|child_lock|led_|relay_status/i;
+function nameOf(eid) { return UMBENENNEN[eid] || (S[eid] && S[eid].attributes && S[eid].attributes.friendly_name) || eid; }
+function rel(iso) {
+  if (!iso) return 'noch nie';
+  const s = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (s < 60) return 'gerade eben';
+  if (s < 3600) return 'vor ' + Math.round(s / 60) + ' Min';
+  if (s < 86400) return 'vor ' + Math.round(s / 3600) + ' Std';
+  return new Date(iso).toLocaleDateString('de-AT', { day: 'numeric', month: 'short' }) + ' ' + new Date(iso).toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' });
+}
+function computeIssues() {
+  const out = [], seen = new Set();
+  Object.keys(S).forEach((e) => {
+    const dom = e.split('.')[0], st = S[e], a = st.attributes || {};
+    if (GERAET_DOM_STOER.includes(dom) && st.state === 'unavailable' && !STOER_AUSNAHME.test(e) && !VERSTECKEN.includes(e)) {
+      const n = nameOf(e).replace(/\s+L\d+$/i, '').trim();
+      if (!seen.has(n)) { seen.add(n); out.push({ level: 'fault', text: n + ' nicht erreichbar', sub: 'Störung · Gerät meldet sich nicht' }); }
+    }
+    if (dom === 'sensor' && a.device_class === 'battery' && st.state !== 'unavailable' && st.state !== 'unknown') {
+      const v = parseFloat(st.state);
+      if (!isNaN(v) && v < BATTERIE_WARNUNG) out.push({ level: 'warn', text: 'Batterie schwach: ' + nameOf(e).replace(/\s*Batterie$/i, ''), sub: Math.round(v) + ' % – bald wechseln' });
+    }
+    if (dom === 'binary_sensor' && a.device_class === 'battery' && st.state === 'on') {
+      out.push({ level: 'warn', text: 'Batterie schwach: ' + nameOf(e).replace(/\s*Batterie$/i, ''), sub: 'bald wechseln' });
+    }
+    if (dom === 'update' && st.state === 'on') {
+      out.push({ level: 'info', text: 'Update verfügbar: ' + nameOf(e).replace(/\s*Update$/i, ''), sub: (a.installed_version || '?') + ' → ' + (a.latest_version || '?') });
+    }
+  });
+  NOTES.forEach((n) => {
+    out.push({ level: 'info', text: n.title || n.message || 'Meldung', sub: n.title && n.message ? String(n.message).replace(/\s+/g, ' ').slice(0, 140) : '', nid: n.notification_id });
+  });
+  const order = { fault: 0, warn: 1, info: 2 };
+  return out.sort((a, b) => order[a.level] - order[b.level]);
+}
+function scheduleIssues() { clearTimeout(issueTimer); issueTimer = setTimeout(renderIssues, 250); }
+function renderIssues() {
+  const box = $('#notes');
+  if (!haveStates) return;
+  const items = computeIssues();
+  if (!items.length) {
+    box.className = 'notes'; box.innerHTML = '<div class="nh"><span class="nd" style="background:var(--ok)"></span>Alles in Ordnung – keine Störungen, nichts zu tun</div>';
+    box.hidden = false; return;
+  }
+  const hasFault = items.some((i) => i.level === 'fault'), hasWarn = items.some((i) => i.level === 'warn');
+  box.className = 'notes' + (hasFault ? ' bad' : hasWarn ? ' warn' : '');
+  let html = '<div class="nh">' + (hasFault ? '⚠️ Störung' : '📋 Hinweise') + ' (' + items.length + ')</div>';
+  items.slice(0, 8).forEach((i, idx) => {
+    html += '<div class="nrow"><span class="nd ' + i.level + '"></span><div class="nt">' + esc(i.text) + (i.sub ? '<small>' + esc(i.sub) + '</small>' : '') + '</div>' +
+      (i.nid ? '<button class="nx" data-n="' + idx + '">Verwerfen</button>' : '') + '</div>';
+  });
+  if (items.length > 8) html += '<div class="nrow"><div class="nt"><small>… und ' + (items.length - 8) + ' weitere</small></div></div>';
+  box.innerHTML = html; box.hidden = false;
+  box.querySelectorAll('.nx').forEach((b) => (b.onclick = () => {
+    const it = items[Number(b.dataset.n)];
+    call('persistent_notification', 'dismiss', { notification_id: it.nid });
+    NOTES = NOTES.filter((n) => n.notification_id !== it.nid); renderIssues();
+  }));
+}
+
+/* ---------- Geräte, Räume, Szenen ---------- */
+function showMsg(html) { const m = $('#msg'); m.innerHTML = html; m.hidden = false; }
+function visible(eid) {
+  const dom = eid.split('.')[0];
+  return S[eid] && GERAETE_DOMAINS.includes(dom) && !VERSTECKEN.includes(eid) && !AUSSCHLUSS.some((rx) => rx.test(eid));
+}
+function sortEnt(e) {
+  const o = { light: 0, switch: 1, cover: 2, input_boolean: 3, scene: 4, script: 5 };
+  return e.slice().sort((a, b) => (o[a.split('.')[0]] - o[b.split('.')[0]]) || nameOf(a).localeCompare(nameOf(b), 'de'));
+}
 function rooms() {
   const used = new Set(), list = [];
   AREAS.slice().sort((a, b) => a.name.localeCompare(b.name, 'de')).forEach((a) => {
@@ -325,13 +484,13 @@ function rooms() {
   if (rest.length) list.push({ id: 'weitere', name: 'Weitere', entities: sortEnt(rest) });
   return list;
 }
-function sortEnt(e) {
-  const o = { light: 0, switch: 1, cover: 2, scene: 3, script: 4, input_boolean: 5 };
-  return e.slice().sort((a, b) => (o[a.split('.')[0]] - o[b.split('.')[0]]) || a.localeCompare(b));
+function szenen() {
+  return sortEnt(Object.keys(S).filter((e) => SZENEN_DOMAINS.includes(e.split('.')[0]) && e !== UPDATE_SKRIPT && !VERSTECKEN.includes(e)));
 }
 function entitiesOf(id) {
   const rs = rooms();
   if (id === 'alle') return sortEnt([].concat(...rs.map((r) => r.entities)));
+  if (id === 'szenen') return szenen();
   const r = rs.find((x) => x.id === id);
   return r ? r.entities : [];
 }
@@ -344,7 +503,7 @@ function makeCard(eid) {
   const ico = el.querySelector('.ico'), nm = el.querySelector('.nm'), sub = el.querySelector('.sub');
   const ctl = el.querySelector('.ctl'), extra = el.querySelector('.extra');
   ico.innerHTML = svg(dom);
-  let slider = null, sv = null;
+  let slider = null;
 
   if (dom === 'light' || dom === 'switch' || dom === 'input_boolean') {
     const t = document.createElement('button');
@@ -357,7 +516,7 @@ function makeCard(eid) {
     const b = document.createElement('button');
     b.className = 'go'; b.textContent = 'Starten';
     b.onclick = () => call(dom, 'turn_on', {}, eid);
-    ctl.appendChild(b);
+    ctl.appendChild(b); ico.onclick = () => call(dom, 'turn_on', {}, eid);
   }
   if (dom === 'cover') {
     extra.innerHTML = '<div class="btns"><button class="btn" data-s="open_cover">▲</button><button class="btn" data-s="stop_cover">■</button><button class="btn" data-s="close_cover">▼</button></div>';
@@ -374,25 +533,21 @@ function makeCard(eid) {
   const DE = { on: 'An', off: 'Aus', unavailable: 'Nicht erreichbar', unknown: 'Unbekannt', open: 'Offen', closed: 'Geschlossen', opening: 'Öffnet …', closing: 'Schließt …' };
   function update(st) {
     const a = st.attributes || {};
-    nm.textContent = UMBENENNEN[eid] || a.friendly_name || eid;
+    nm.textContent = nameOf(eid);
     const on = st.state === 'on' || st.state === 'open' || st.state === 'opening';
     el.classList.toggle('on', on && dom !== 'scene' && dom !== 'script');
     el.classList.toggle('unavailable', st.state === 'unavailable');
     let txt = DE[st.state] || st.state;
-    if (dom === 'light' && st.state === 'on' && typeof a.brightness === 'number') {
-      txt = Math.round((a.brightness / 255) * 100) + ' %';
-    }
+    if (dom === 'light' && st.state === 'on' && typeof a.brightness === 'number') txt = Math.round((a.brightness / 255) * 100) + ' %';
     if (dom === 'cover' && typeof a.current_position === 'number') txt += ' · ' + a.current_position + ' %';
-    if (dom === 'scene' || dom === 'script') txt = 'Szene';
+    if (dom === 'scene') txt = 'Szene';
+    if (dom === 'script') txt = 'Skript';
     sub.textContent = txt;
     if (slider) {
       const modes = a.supported_color_modes || [];
-      const dimmable = modes.some((m) => m !== 'onoff');
-      const show = dimmable && st.state === 'on';
+      const show = modes.some((m) => m !== 'onoff') && st.state === 'on';
       extra.hidden = !show;
-      if (typeof a.brightness === 'number' && document.activeElement !== slider) {
-        slider.value = Math.max(1, Math.round((a.brightness / 255) * 100));
-      }
+      if (typeof a.brightness === 'number' && document.activeElement !== slider) slider.value = Math.max(1, Math.round((a.brightness / 255) * 100));
     }
   }
   return { el, update };
@@ -410,12 +565,17 @@ function renderTabs() {
   };
   mk('alle', 'Alle');
   rs.forEach((r) => mk(r.id, r.name));
+  if (szenen().length) mk('szenen', 'Szenen');
+  mk('zeit', 'Zeit');
 }
 function renderGrid() {
-  const g = $('#grid'); g.innerHTML = ''; cards = {};
+  const g = $('#grid'), z = $('#zeit');
+  g.innerHTML = ''; cards = {};
+  if (current === 'zeit') { g.hidden = true; z.hidden = false; renderZeitList(); renderZeitForm(); updateSummary(); return; }
+  g.hidden = false; z.hidden = true;
   const e = entitiesOf(current);
   e.forEach((eid) => { const c = makeCard(eid); cards[eid] = c; c.update(S[eid]); g.appendChild(c.el); });
-  if (!e.length) g.innerHTML = '<div style="grid-column:1/-1;color:var(--muted);text-align:center;padding:40px 0">Keine Geräte in diesem Raum.</div>';
+  if (!e.length) g.innerHTML = '<div style="grid-column:1/-1;color:var(--muted);text-align:center;padding:40px 0">Keine Einträge.</div>';
   updateSummary();
 }
 function lightsOn(list) { return list.filter((e) => e.startsWith('light.') && S[e] && S[e].state === 'on'); }
@@ -425,20 +585,145 @@ function updateSummary() {
   $('#sumBig').textContent = on === 0 ? 'Alle Lichter aus' : on + (on === 1 ? ' Licht an' : ' Lichter an');
   $('#sumSmall').textContent = all.filter((e) => e.startsWith('light.')).length + ' Lichter insgesamt';
 }
+
+/* ---------- Zeitsteuerung ---------- */
+const TAGE = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+const TAGE_DE = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+let zf = { eid: '', act: 'off', pct: 50, time: '22:00', days: [true, true, true, true, true, true, true] };
+
+function renderZeitList() {
+  const box = $('#zlist'); if (!box) return;
+  const autos = Object.keys(S).filter((e) => e.startsWith('automation.')).sort((a, b) => nameOf(a).localeCompare(nameOf(b), 'de'));
+  const scheds = Object.keys(S).filter((e) => e.startsWith('schedule.'));
+  let html = '';
+  autos.forEach((e) => {
+    const st = S[e], a = st.attributes || {}, mine = String(a.id || '').startsWith('steuerung_');
+    html += '<div class="zrow ' + (st.state === 'on' ? '' : 'off') + '"><div class="nt">' + esc(nameOf(e).replace(/^Zeitschaltuhr:\s*/, '⏰ ')) +
+      '<small>zuletzt: ' + esc(rel(a.last_triggered)) + (st.state === 'on' ? '' : ' · pausiert') + '</small></div>' +
+      (mine ? '<button class="zdel" data-del="' + esc(a.id) + '">Löschen</button>' : '') +
+      '<button class="tog" style="' + (st.state === 'on' ? 'background:var(--accent);border-color:var(--accent)' : '') + '" data-tg="' + esc(e) + '" aria-label="An/Aus"></button></div>';
+  });
+  scheds.forEach((e) => {
+    const st = S[e], a = st.attributes || {};
+    html += '<div class="zrow ' + (st.state === 'on' ? '' : 'off') + '"><div class="nt">🗓️ ' + esc(nameOf(e)) + '<small>' + (st.state === 'on' ? 'aktiv' : 'außerhalb') +
+      (a.next_event ? ' · nächste Änderung ' + esc(rel(a.next_event).replace('vor', 'in')) : '') + '</small></div></div>';
+  });
+  if (!html) html = '<div style="color:var(--muted);padding:8px 4px">Noch keine Automatisierungen oder Zeitschaltuhren.</div>';
+  box.innerHTML = html;
+  box.querySelectorAll('[data-tg]').forEach((b) => {
+    // Schalter-Optik wie bei Geräten: Kreis
+    b.style.position = 'relative';
+    const on = S[b.dataset.tg] && S[b.dataset.tg].state === 'on';
+    b.innerHTML = '<span style="position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:' + (on ? '#fff' : '#C9CDD6') + ';transform:translateX(' + (on ? 18 : 0) + 'px);transition:transform .2s"></span>';
+    b.onclick = () => call('automation', 'toggle', {}, b.dataset.tg);
+  });
+  box.querySelectorAll('[data-del]').forEach((b) => (b.onclick = () => deleteAutomation(b.dataset.del)));
+}
+
+function zeitTargets() {
+  const out = [];
+  Object.keys(S).forEach((e) => {
+    const dom = e.split('.')[0];
+    if ((GERAETE_DOMAINS.includes(dom) && visible(e)) || SZENEN_DOMAINS.includes(dom) && e !== UPDATE_SKRIPT) out.push(e);
+  });
+  return sortEnt(out);
+}
+function actionOptions(eid) {
+  const dom = (eid || '').split('.')[0];
+  if (dom === 'light') return [['on', 'Einschalten'], ['off', 'Ausschalten'], ['dim', 'Dimmen auf …']];
+  if (dom === 'switch' || dom === 'input_boolean') return [['on', 'Einschalten'], ['off', 'Ausschalten']];
+  if (dom === 'cover') return [['open', 'Öffnen'], ['close', 'Schließen']];
+  if (dom === 'scene' || dom === 'script') return [['run', 'Starten']];
+  return [['on', 'Einschalten']];
+}
+function renderZeitForm() {
+  const box = $('#zform'); if (!box) return;
+  const targets = zeitTargets();
+  if (!zf.eid || !targets.includes(zf.eid)) zf.eid = targets[0] || '';
+  const acts = actionOptions(zf.eid);
+  if (!acts.some((a) => a[0] === zf.act)) zf.act = acts[0][0];
+  let html = '<label>Gerät oder Szene<select id="zfE">' + targets.map((e) => '<option value="' + esc(e) + '"' + (e === zf.eid ? ' selected' : '') + '>' + esc(nameOf(e)) + '</option>').join('') + '</select></label>';
+  html += '<label>Aktion<select id="zfA">' + acts.map((a) => '<option value="' + a[0] + '"' + (a[0] === zf.act ? ' selected' : '') + '>' + a[1] + '</option>').join('') + '</select></label>';
+  if (zf.act === 'dim') html += '<label>Helligkeit in %<input type="number" id="zfP" min="1" max="100" value="' + zf.pct + '"></label>';
+  html += '<label>Uhrzeit<input type="time" id="zfT" value="' + zf.time + '"></label>';
+  html += '<label>Wochentage</label><div class="days">' + TAGE_DE.map((d, i) => '<div class="day' + (zf.days[i] ? ' on' : '') + '" data-d="' + i + '">' + d + '</div>').join('') + '</div>';
+  html += '<button class="primary" id="zfS">Zeitschaltuhr speichern</button>';
+  box.innerHTML = html;
+  $('#zfE').onchange = (e) => { zf.eid = e.target.value; renderZeitForm(); };
+  $('#zfA').onchange = (e) => { zf.act = e.target.value; renderZeitForm(); };
+  if ($('#zfP')) $('#zfP').oninput = (e) => { zf.pct = Number(e.target.value) || 50; };
+  $('#zfT').oninput = (e) => { zf.time = e.target.value; };
+  box.querySelectorAll('.day').forEach((d) => (d.onclick = () => { const i = Number(d.dataset.d); zf.days[i] = !zf.days[i]; d.classList.toggle('on', zf.days[i]); }));
+  $('#zfS').onclick = saveAutomation;
+}
+function dayText(days) {
+  if (days.every(Boolean)) return 'täglich';
+  if (days.slice(0, 5).every(Boolean) && !days[5] && !days[6]) return 'Mo–Fr';
+  if (!days.slice(0, 5).some(Boolean) && days[5] && days[6]) return 'Sa, So';
+  return TAGE_DE.filter((d, i) => days[i]).join(', ');
+}
+async function apiFetch(path, opts) {
+  tokens = await getTokens();
+  const r = await fetch(path, Object.assign({ headers: { Authorization: 'Bearer ' + tokens.access_token, 'Content-Type': 'application/json' } }, opts || {}));
+  return r;
+}
+async function saveAutomation() {
+  if (!zf.eid) { toast('Bitte ein Gerät wählen'); return; }
+  if (!zf.days.some(Boolean)) { toast('Bitte mindestens einen Wochentag wählen'); return; }
+  if (!zf.time) { toast('Bitte eine Uhrzeit wählen'); return; }
+  const dom = zf.eid.split('.')[0];
+  let action, actText;
+  if (dom === 'scene') { action = { action: 'scene.turn_on', target: { entity_id: zf.eid } }; actText = 'starten'; }
+  else if (dom === 'script') { action = { action: 'script.turn_on', target: { entity_id: zf.eid } }; actText = 'starten'; }
+  else if (dom === 'cover') { action = { action: zf.act === 'open' ? 'cover.open_cover' : 'cover.close_cover', target: { entity_id: zf.eid } }; actText = zf.act === 'open' ? 'öffnen' : 'schließen'; }
+  else if (zf.act === 'dim') { action = { action: 'light.turn_on', target: { entity_id: zf.eid }, data: { brightness_pct: Math.min(100, Math.max(1, zf.pct)) } }; actText = 'auf ' + zf.pct + ' %'; }
+  else if (zf.act === 'off') { action = { action: dom + '.turn_off', target: { entity_id: zf.eid } }; actText = 'aus'; }
+  else { action = { action: dom + '.turn_on', target: { entity_id: zf.eid } }; actText = 'ein'; }
+  const days = TAGE.filter((d, i) => zf.days[i]);
+  const cfg = {
+    alias: 'Zeitschaltuhr: ' + nameOf(zf.eid) + ' ' + actText + ' · ' + zf.time + ' · ' + dayText(zf.days),
+    description: 'Angelegt in der Steuer-App',
+    triggers: [{ trigger: 'time', at: zf.time + ':00' }],
+    conditions: days.length === 7 ? [] : [{ condition: 'time', weekday: days }],
+    actions: [action],
+    mode: 'single'
+  };
+  const id = 'steuerung_' + Date.now();
+  try {
+    const r = await apiFetch('/api/config/automation/config/' + id, { method: 'POST', body: JSON.stringify(cfg) });
+    if (r.status === 401 || r.status === 403) { toast('Nur Administratoren können Zeitschaltuhren anlegen.'); return; }
+    if (!r.ok) { toast('Speichern fehlgeschlagen (' + r.status + '): ' + (await r.text()).slice(0, 120)); return; }
+    call('automation', 'reload', {});
+    toast('Zeitschaltuhr gespeichert', true);
+  } catch (e) { toast('Speichern fehlgeschlagen: ' + e.message); }
+}
+async function deleteAutomation(id) {
+  if (!confirm('Diese Zeitschaltuhr löschen?')) return;
+  try {
+    const r = await apiFetch('/api/config/automation/config/' + id, { method: 'DELETE' });
+    if (!r.ok) { toast('Löschen fehlgeschlagen (' + r.status + ')'); return; }
+    call('automation', 'reload', {});
+    toast('Gelöscht', true);
+  } catch (e) { toast('Löschen fehlgeschlagen: ' + e.message); }
+}
+
 function maybeBuild() {
   if (!haveStates || !haveAreas) return;
   $('#msg').hidden = true; $('#app').hidden = false; $('#logout').hidden = false;
+  $('#upd').hidden = !S[UPDATE_SKRIPT];
   let saved = 'alle'; try { saved = localStorage.getItem(TABKEY) || 'alle'; } catch (e) {}
-  current = (saved === 'alle' || rooms().some((r) => r.id === saved)) ? saved : 'alle';
-  renderTabs(); renderGrid(); updateWeather();
-  if (!rooms().length) { $('#app').hidden = true; showMsg('Keine Geräte gefunden.'); }
+  const valid = ['alle', 'zeit'].concat(rooms().map((r) => r.id)).concat(szenen().length ? ['szenen'] : []);
+  current = valid.includes(saved) ? saved : 'alle';
+  renderTabs(); renderGrid(); renderIssues();
+  if (!WEATHER) updateWeatherFromEntity();
 }
 
 $('#allOff').onclick = () => {
-  const l = lightsOn(entitiesOf(current === 'alle' ? 'alle' : current));
+  const l = lightsOn(entitiesOf(current === 'alle' || current === 'szenen' || current === 'zeit' ? 'alle' : current));
   if (l.length) call('light', 'turn_off', {}, l);
 };
-$('#ver').textContent = ' ' + VERSION;
+$('#upd').onclick = () => { call('script', 'turn_on', {}, UPDATE_SKRIPT); toast('Aktualisierung gestartet – Seite in 5 Sekunden neu laden', true); };
+$('#ver').textContent = ' · ' + VERSION;
 $('#logout').onclick = () => { localStorage.removeItem(KEY); location.reload(); };
 connect();
 </script>
