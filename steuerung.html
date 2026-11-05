@@ -66,6 +66,9 @@
   .tabs::-webkit-scrollbar{display:none}
   .tab{flex:none;background:var(--card);color:var(--muted);border:1px solid var(--line);border-radius:999px;
     padding:9px 16px;font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap}
+  .tabs.sub{padding-top:0}
+  .tab.sm{padding:7px 14px;font-size:13px;background:transparent}
+  .tab.sm.act{background:var(--card2);color:var(--accent);border-color:var(--accent)}
   .tab.act{background:var(--accent);color:#16130B;border-color:var(--accent)}
 
   .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
@@ -153,6 +156,7 @@
     </div></aside>
     <div class="mainc">
     <nav class="tabs" id="tabs"></nav>
+    <nav class="tabs sub" id="tabs2" hidden></nav>
     <main class="grid" id="grid"></main>
     <section id="zeit" hidden>
       <div class="zh">Zeitschaltuhren &amp; Automatisierungen</div>
@@ -199,7 +203,7 @@ const AREA_GRUPPE = { 'Terrasse': 'Terrasse' };
 const GRUPPEN_REIHENFOLGE = ['Obergeschoss', 'Untergeschoss'];
 /* ===================================================================== */
 
-const VERSION = 'v4.3 · 05.11. 20:25';
+const VERSION = 'v4.4 · 05.11. 20:40';
 const KEY = 'steuerung_tokens_v1';
 const TABKEY = 'steuerung_tab_v1';
 const ORIGIN = location.origin;
@@ -582,23 +586,39 @@ function renderTabs() {
     const b = document.createElement('button');
     b.className = 'tab' + (current === id ? ' act' : '');
     b.textContent = name;
-    b.onclick = () => { current = id; try { localStorage.setItem(TABKEY, id); } catch (e) {} renderTabs(); renderGrid(); };
+    b.onclick = () => { current = id; currentRoom = 'alle'; try { localStorage.setItem(TABKEY, id); localStorage.setItem(TABKEY + 'r', 'alle'); } catch (e) {} renderTabs(); renderGrid(); };
     tabs.appendChild(b);
   };
   mk('alle', 'Alle');
   rs.forEach((r) => mk(r.id, r.name));
   if (szenen().length) mk('szenen', 'Szenen');
   mk('zeit', 'Zeit');
+  const t2 = $('#tabs2'); t2.innerHTML = '';
+  const grp = rs.find((x) => x.id === current);
+  if (grp && grp.rooms.length > 1) {
+    const mk2 = (id, name) => {
+      const b = document.createElement('button');
+      b.className = 'tab sm' + (currentRoom === id ? ' act' : '');
+      b.textContent = name;
+      b.onclick = () => { currentRoom = id; try { localStorage.setItem(TABKEY + 'r', id); } catch (e) {} renderTabs(); renderGrid(); };
+      t2.appendChild(b);
+    };
+    mk2('alle', 'Alle Räume');
+    grp.rooms.forEach((r) => mk2(r.id, r.name));
+    t2.hidden = false;
+  } else t2.hidden = true;
 }
 function renderGrid() {
   const g = $('#grid'), z = $('#zeit');
   g.innerHTML = ''; cards = {};
   if (current === 'zeit') { g.hidden = true; z.hidden = false; renderZeitList(); renderZeitForm(); updateSummary(); return; }
   g.hidden = false; z.hidden = true;
-  const e = entitiesOf(current);
+  let e = entitiesOf(current);
   const add = (eid) => { const c = makeCard(eid); cards[eid] = c; c.update(S[eid]); g.appendChild(c.el); };
   const grp = current.startsWith('g:') ? groups().find((x) => x.id === current) : null;
-  if (grp && grp.rooms.length > 1) {
+  const room = grp && currentRoom !== 'alle' ? grp.rooms.find((r) => r.id === currentRoom) : null;
+  if (room) { e = room.entities; e.forEach(add); }
+  else if (grp && grp.rooms.length > 1) {
     grp.rooms.forEach((r) => {
       const h = document.createElement('div'); h.className = 'zh'; h.style.gridColumn = '1/-1'; h.textContent = r.name; g.appendChild(h);
       r.entities.forEach(add);
@@ -618,7 +638,7 @@ function updateSummary() {
 /* ---------- Zeitsteuerung ---------- */
 const TAGE = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 const TAGE_DE = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
-let showPaused = false;
+let showPaused = false, currentRoom = 'alle';
 let zf = { eid: '', act: 'off', pct: 50, time: '22:00', days: [true, true, true, true, true, true, true] };
 
 function renderZeitList() {
@@ -747,6 +767,9 @@ function maybeBuild() {
   let saved = 'alle'; try { saved = localStorage.getItem(TABKEY) || 'alle'; } catch (e) {}
   const valid = ['alle', 'zeit'].concat(groups().map((r) => r.id)).concat(szenen().length ? ['szenen'] : []);
   current = valid.includes(saved) ? saved : 'alle';
+  try { currentRoom = localStorage.getItem(TABKEY + 'r') || 'alle'; } catch (e) {}
+  const gg = groups().find((x) => x.id === current);
+  if (!gg || !gg.rooms.some((r) => r.id === currentRoom)) currentRoom = 'alle';
   renderTabs(); renderGrid(); renderIssues();
   if (!WEATHER) updateWeatherFromEntity();
 }
