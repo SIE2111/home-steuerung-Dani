@@ -203,7 +203,7 @@ const AREA_GRUPPE = { 'Terrasse': 'Terrasse' };
 const GRUPPEN_REIHENFOLGE = ['Obergeschoss', 'Untergeschoss'];
 /* ===================================================================== */
 
-const VERSION = 'v4.8 · 11.11. 20:45';
+const VERSION = 'v4.9 · 11.11. 22:00';
 const KEY = 'steuerung_tokens_v1';
 const TABKEY = 'steuerung_tab_v1';
 const ORIGIN = location.origin;
@@ -281,7 +281,7 @@ function setStatus(ok, text) {
 }
 function pollNotes() { if (ws && ws.readyState === 1) idNotes = send({ type: 'persistent_notification/get' }); }
 
-const TEMPLATE = "{% set ns = namespace(r=[]) %}{% for a in areas() %}{% set f = floor_id(a) %}{% set ns.r = ns.r + [{'id': a, 'name': area_name(a), 'floor': (floor_name(f) if f else none), 'entities': area_entities(a)}] %}{% endfor %}{{ ns.r | to_json }}";
+const TEMPLATE = "{% set ns = namespace(r=[]) %}{% for s in states if s.domain in ['light','switch','cover','input_boolean','scene','script'] %}{% set a = area_id(s.entity_id) %}{% if a %}{% set f = floor_id(a) %}{% set ns.r = ns.r + [[s.entity_id, a, area_name(a), (floor_name(f) if f else none)]] %}{% endif %}{% endfor %}{{ ns.r | to_json }}";
 
 async function connect() {
   try { tokens = await getTokens(); } catch (e) { showMsg('Anmeldung fehlgeschlagen.<br><b>' + esc(e.message) + '</b>'); return; }
@@ -322,7 +322,14 @@ async function connect() {
     } else if (m.type === 'event' && m.id === idTpl) {
       let r = m.event.result;
       try { if (typeof r === 'string') r = JSON.parse(r); } catch (e) { r = []; }
-      AREAS = Array.isArray(r) ? r : [];
+      const byArea = {};
+      (Array.isArray(r) ? r : []).forEach((x) => {
+        if (!Array.isArray(x)) return;
+        const ar = byArea[x[1]] = byArea[x[1]] || { id: x[1], name: x[2], floor: x[3], entities: [] };
+        ar.entities.push(x[0]);
+      });
+      AREAS = Object.values(byArea);
+      console.log('[steuerung] bereiche', JSON.stringify(AREAS));
       haveAreas = true; maybeBuild();
     } else if (m.type === 'result' && m.id === idUser && m.success) {
       userName = m.result.name || '';
