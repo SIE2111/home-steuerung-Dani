@@ -203,7 +203,7 @@ const AREA_GRUPPE = { 'Terrasse': 'Terrasse' };
 const GRUPPEN_REIHENFOLGE = ['Obergeschoss', 'Untergeschoss'];
 /* ===================================================================== */
 
-const VERSION = 'v4.6 · 05.11. 21:00';
+const VERSION = 'v4.7 · 11.11. 20:35';
 const KEY = 'steuerung_tokens_v1';
 const TABKEY = 'steuerung_tab_v1';
 const ORIGIN = location.origin;
@@ -439,25 +439,29 @@ function computeIssues() {
     const dom = e.split('.')[0], st = S[e], a = st.attributes || {};
     if (GERAET_DOM_STOER.includes(dom) && st.state === 'unavailable' && !STOER_AUSNAHME.test(e) && !VERSTECKEN.includes(e)) {
       const n = nameOf(e).replace(/\s+L\d+$/i, '').trim();
-      if (!seen.has(n)) { seen.add(n); out.push({ level: 'fault', text: n + ' nicht erreichbar', sub: 'Störung · Gerät meldet sich nicht' }); }
+      if (!seen.has(n)) { seen.add(n); out.push({ level: 'fault', text: n + ' nicht erreichbar', sub: 'Störung · Gerät meldet sich nicht', key: 'u:' + n }); }
     }
     if (dom === 'sensor' && a.device_class === 'battery' && st.state !== 'unavailable' && st.state !== 'unknown') {
       const v = parseFloat(st.state);
-      if (!isNaN(v) && v < BATTERIE_WARNUNG) out.push({ level: 'warn', text: 'Batterie schwach: ' + nameOf(e).replace(/\s*Batterie$/i, ''), sub: Math.round(v) + ' % – bald wechseln' });
+      if (!isNaN(v) && v < BATTERIE_WARNUNG) out.push({ level: 'warn', text: 'Batterie schwach: ' + nameOf(e).replace(/\s*Batterie$/i, ''), sub: Math.round(v) + ' % – bald wechseln', key: 'b:' + e });
     }
     if (dom === 'binary_sensor' && a.device_class === 'battery' && st.state === 'on') {
-      out.push({ level: 'warn', text: 'Batterie schwach: ' + nameOf(e).replace(/\s*Batterie$/i, ''), sub: 'bald wechseln' });
+      out.push({ level: 'warn', text: 'Batterie schwach: ' + nameOf(e).replace(/\s*Batterie$/i, ''), sub: 'bald wechseln', key: 'b:' + e });
     }
     if (dom === 'update' && st.state === 'on') {
-      out.push({ level: 'info', text: 'Update verfügbar: ' + nameOf(e).replace(/\s*Update$/i, ''), sub: (a.installed_version || '?') + ' → ' + (a.latest_version || '?') });
+      out.push({ level: 'info', text: 'Update verfügbar: ' + nameOf(e).replace(/\s*Update$/i, ''), sub: (a.installed_version || '?') + ' → ' + (a.latest_version || '?'), key: 'up:' + e + ':' + a.latest_version, upd: e });
     }
   });
   NOTES.forEach((n) => {
     out.push({ level: 'info', text: n.title || n.message || 'Meldung', sub: n.title && n.message ? String(n.message).replace(/\s+/g, ' ').slice(0, 140) : '', nid: n.notification_id });
   });
   const order = { fault: 0, warn: 1, info: 2 };
-  return out.sort((a, b) => order[a.level] - order[b.level]);
+  const hid = hiddenNotes();
+  return out.filter((i) => !i.key || !hid[i.key]).sort((a, b) => order[a.level] - order[b.level]);
 }
+const HIDKEY = 'steuerung_hinweise_aus_v1';
+function hiddenNotes() { try { return JSON.parse(localStorage.getItem(HIDKEY) || '{}'); } catch (e) { return {}; } }
+function hideNote(k) { const h = hiddenNotes(); h[k] = Date.now(); try { localStorage.setItem(HIDKEY, JSON.stringify(h)); } catch (e) {} }
 function scheduleIssues() { clearTimeout(issueTimer); issueTimer = setTimeout(renderIssues, 250); }
 function renderIssues() {
   const box = $('#notes');
@@ -472,14 +476,15 @@ function renderIssues() {
   let html = '<div class="nh">' + (hasFault ? '⚠️ Störung' : '📋 Hinweise') + ' (' + items.length + ')</div>';
   items.slice(0, 8).forEach((i, idx) => {
     html += '<div class="nrow"><span class="nd ' + i.level + '"></span><div class="nt">' + esc(i.text) + (i.sub ? '<small>' + esc(i.sub) + '</small>' : '') + '</div>' +
-      (i.nid ? '<button class="nx" data-n="' + idx + '">Verwerfen</button>' : '') + '</div>';
+      ((i.nid || i.key) ? '<button class="nx" data-n="' + idx + '">' + (i.level === 'fault' ? 'Ausblenden' : 'OK') + '</button>' : '') + '</div>';
   });
   if (items.length > 8) html += '<div class="nrow"><div class="nt"><small>… und ' + (items.length - 8) + ' weitere</small></div></div>';
   box.innerHTML = html; box.hidden = false;
   box.querySelectorAll('.nx').forEach((b) => (b.onclick = () => {
     const it = items[Number(b.dataset.n)];
-    call('persistent_notification', 'dismiss', { notification_id: it.nid });
-    NOTES = NOTES.filter((n) => n.notification_id !== it.nid); renderIssues();
+    if (it.nid) { call('persistent_notification', 'dismiss', { notification_id: it.nid }); NOTES = NOTES.filter((n) => n.notification_id !== it.nid); }
+    if (it.key) hideNote(it.key);
+    renderIssues();
   }));
 }
 
