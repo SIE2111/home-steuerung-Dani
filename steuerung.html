@@ -207,7 +207,7 @@ const AREA_GRUPPE = { 'Terrasse': 'Terrasse' };
 const GRUPPEN_REIHENFOLGE = ['Obergeschoss', 'Untergeschoss'];
 /* ===================================================================== */
 
-const VERSION = 'v4.13 · 11.11. 22:30';
+const VERSION = 'v4.14 · 11.11. 22:40';
 const KEY = 'steuerung_tokens_v1';
 const TABKEY = 'steuerung_tab_v1';
 const ORIGIN = location.origin;
@@ -557,7 +557,7 @@ function makeCard(eid) {
   el.innerHTML = '<div class="row"><div class="ico"></div><div class="ctl"></div></div><div class="spacer"></div><div><div class="nm"></div><div class="sub"></div></div><div class="extra"></div>';
   const ico = el.querySelector('.ico'), nm = el.querySelector('.nm'), sub = el.querySelector('.sub');
   const ctl = el.querySelector('.ctl'), extra = el.querySelector('.extra');
-  ico.innerHTML = svg(dom);
+  ico.innerHTML = svg(isLight(eid) ? 'light' : dom);
   let slider = null;
 
   if (dom === 'light' || dom === 'switch' || dom === 'input_boolean') {
@@ -657,12 +657,15 @@ function renderGrid() {
   if (!e.length) g.innerHTML = '<div style="grid-column:1/-1;color:var(--muted);text-align:center;padding:40px 0">Keine Einträge.</div>';
   updateSummary();
 }
-function lightsOn(list) { return list.filter((e) => e.startsWith('light.') && S[e] && S[e].state === 'on'); }
+// Schalter, deren Name nach Licht klingt, zählen wie Lichter
+const LICHT_NAME = /licht|lampe|leuchte|strahler|spot/i;
+function isLight(e) { return e.startsWith('light.') || (e.startsWith('switch.') && LICHT_NAME.test(nameOf(e))); }
+function lightsOn(list) { return list.filter((e) => isLight(e) && S[e] && S[e].state === 'on'); }
 function updateSummary() {
   const all = entitiesOf('gesamt');
   const on = lightsOn(all).length;
   $('#sumBig').textContent = on === 0 ? 'Alle Lichter aus' : on + (on === 1 ? ' Licht an' : ' Lichter an');
-  $('#sumSmall').textContent = all.filter((e) => e.startsWith('light.')).length + ' Lichter insgesamt';
+  $('#sumSmall').textContent = all.filter(isLight).length + ' Lichter insgesamt';
 }
 
 /* ---------- Zeitsteuerung ---------- */
@@ -806,7 +809,7 @@ function maybeBuild() {
 
 $('#allOff').onclick = () => {
   const l = lightsOn(entitiesOf(current === 'alle' || current === 'szenen' || current === 'zeit' ? 'gesamt' : current));
-  if (l.length) call('light', 'turn_off', {}, l);
+  if (l.length) call('homeassistant', 'turn_off', {}, l);
 };
 $('#upd').onclick = () => {
   call('script', 'turn_on', {}, UPDATE_SKRIPT);
