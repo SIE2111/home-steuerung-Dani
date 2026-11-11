@@ -207,7 +207,7 @@ const AREA_GRUPPE = { 'Terrasse': 'Terrasse' };
 const GRUPPEN_REIHENFOLGE = ['Obergeschoss', 'Untergeschoss'];
 /* ===================================================================== */
 
-const VERSION = 'v4.14 · 11.11. 22:40';
+const VERSION = 'v4.15 · 11.11. 22:45';
 const KEY = 'steuerung_tokens_v1';
 const TABKEY = 'steuerung_tab_v1';
 const ORIGIN = location.origin;
@@ -444,7 +444,14 @@ function updateWeatherFromEntity() {
 /* ---------- Hinweise & Störungen ---------- */
 const GERAET_DOM_STOER = ['light', 'switch', 'cover', 'lock', 'climate', 'fan'];
 const STOER_AUSNAHME = /permit_join|bridge|backlight|vibration|momentary|countdown|indicator|induction|power_on|child_lock|led_|relay_status/i;
-function nameOf(eid) { return UMBENENNEN[eid] || (S[eid] && S[eid].attributes && S[eid].attributes.friendly_name) || eid; }
+function nameOf(eid) {
+  if (UMBENENNEN[eid]) return UMBENENNEN[eid];
+  let n = (S[eid] && S[eid].attributes && S[eid].attributes.friendly_name) || eid;
+  // Home Assistant setzt Gerätename + Kanalname zusammen; doppelte Teile entfernen
+  // z. B. "Deckenlicht Küche Deckenlicht Küche" -> "Deckenlicht Küche"
+  n = n.replace(/^(.+?)\s+\1(?=\s|$)/i, '$1');
+  return n;
+}
 function rel(iso) {
   if (!iso) return 'noch nie';
   const s = (Date.now() - new Date(iso).getTime()) / 1000;
