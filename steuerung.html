@@ -191,8 +191,10 @@ const AUSSCHLUSS = [
   /permit_join|bridge/i,
   /backlight|vibration|momentary|countdown|indicator|induction|power_on|child_lock|led_|relay_status/i,
 ];
-// Kacheln, deren Name so beginnt, sind Wandschalter/Taster (nur Technik) und werden nicht gezeigt
-const SCHALTER_NAME = /^(szenen)?schalter\b/i;
+// Alles, was in Home Assistant im Bereich oder auf der Etage "Schalter" liegt, wird nie gezeigt
+const SCHALTER_BEREICH = /^schalter$/i;
+// Dieser Reiter erscheint ganz hinten und nicht unter "Alle"
+const SONSTIGES = 'Sonstiges';
 const GERAETE_DOMAINS = ['light', 'switch', 'cover', 'input_boolean'];
 const SZENEN_DOMAINS = ['scene', 'script'];
 const UPDATE_SKRIPT = 'script.steuerung_aktualisieren';
@@ -205,7 +207,7 @@ const AREA_GRUPPE = { 'Terrasse': 'Terrasse' };
 const GRUPPEN_REIHENFOLGE = ['Obergeschoss', 'Untergeschoss'];
 /* ===================================================================== */
 
-const VERSION = 'v4.10 · 11.11. 22:05';
+const VERSION = 'v4.11 · 11.11. 22:15';
 const KEY = 'steuerung_tokens_v1';
 const TABKEY = 'steuerung_tab_v1';
 const ORIGIN = location.origin;
@@ -446,7 +448,7 @@ function computeIssues() {
   const out = [], seen = new Set();
   Object.keys(S).forEach((e) => {
     const dom = e.split('.')[0], st = S[e], a = st.attributes || {};
-    if (GERAET_DOM_STOER.includes(dom) && st.state === 'unavailable' && !STOER_AUSNAHME.test(e) && !VERSTECKEN.includes(e) && !(dom === 'switch' && SCHALTER_NAME.test(nameOf(e)))) {
+    if (GERAET_DOM_STOER.includes(dom) && st.state === 'unavailable' && !STOER_AUSNAHME.test(e) && !VERSTECKEN.includes(e) && !inSchalter(e)) {
       const n = nameOf(e).replace(/\s+L\d+$/i, '').trim();
       if (!seen.has(n)) { seen.add(n); out.push({ level: 'fault', text: n + ' nicht erreichbar', sub: 'Störung · Gerät meldet sich nicht', key: 'u:' + n }); }
     }
@@ -501,27 +503,30 @@ function renderIssues() {
 function showMsg(html) { const m = $('#msg'); m.innerHTML = html; m.hidden = false; }
 function visible(eid) {
   const dom = eid.split('.')[0];
-  return S[eid] && GERAETE_DOMAINS.includes(dom) && !VERSTECKEN.includes(eid) && !AUSSCHLUSS.some((rx) => rx.test(eid)) && !(dom === 'switch' && SCHALTER_NAME.test(nameOf(eid)));
+  return S[eid] && GERAETE_DOMAINS.includes(dom) && !VERSTECKEN.includes(eid) && !AUSSCHLUSS.some((rx) => rx.test(eid)) && !inSchalter(eid);
 }
 function sortEnt(e) {
   const o = { light: 0, switch: 1, cover: 2, input_boolean: 3, scene: 4, script: 5 };
   return e.slice().sort((a, b) => (o[a.split('.')[0]] - o[b.split('.')[0]]) || nameOf(a).localeCompare(nameOf(b), 'de'));
+}
+function inSchalter(eid) {
+  return AREAS.some((a) => (SCHALTER_BEREICH.test(a.name || '') || SCHALTER_BEREICH.test(a.floor || '')) && (a.entities || []).includes(eid));
 }
 function rooms() {
   const used = new Set(), list = [];
   AREAS.slice().sort((a, b) => a.name.localeCompare(b.name, 'de')).forEach((a) => {
     const e = (a.entities || []).filter(visible);
     e.forEach((x) => used.add(x));
-    if (e.length) list.push({ id: a.id, name: a.name, group: AREA_GRUPPE[a.name] || a.floor || 'Sonstiges', entities: sortEnt(e) });
+    if (e.length) list.push({ id: a.id, name: a.name, group: AREA_GRUPPE[a.name] || a.floor || SONSTIGES, entities: sortEnt(e) });
   });
   const rest = Object.keys(S).filter((e) => visible(e) && !used.has(e));
-  if (rest.length) list.push({ id: 'weitere', name: 'Weitere', group: 'Sonstiges', entities: sortEnt(rest) });
+  if (rest.length) list.push({ id: 'weitere', name: 'Weitere', group: SONSTIGES, entities: sortEnt(rest) });
   return list;
 }
 function groups() {
   const m = {};
   rooms().forEach((r) => { (m[r.group] = m[r.group] || { id: 'g:' + r.group, name: r.group, rooms: [] }).rooms.push(r); });
-  const rank = (n) => { const i = GRUPPEN_REIHENFOLGE.indexOf(n); return n === 'Sonstiges' ? 99 : n === 'Terrasse' ? 50 : i >= 0 ? i : 10; };
+  const rank = (n) => { const i = GRUPPEN_REIHENFOLGE.indexOf(n); return n === SONSTIGES ? 99 : n === 'Terrasse' ? 50 : i >= 0 ? i : 10; };
   return Object.values(m).sort((a, b) => rank(a.name) - rank(b.name) || a.name.localeCompare(b.name, 'de'));
 }
 function szenen() {
@@ -529,7 +534,8 @@ function szenen() {
 }
 function entitiesOf(id) {
   const rs = rooms();
-  if (id === 'alle') return sortEnt([].concat(...rs.map((r) => r.entities)));
+  if (id === 'alle') return sortEnt([].concat(...rs.filter((r) => r.group !== SONSTIGES).map((r) => r.entities)));
+  if (id === 'gesamt') return sortEnt([].concat(...rs.map((r) => r.entities)));
   if (id === 'szenen') return szenen();
   const g = groups().find((x) => x.id === id);
   return g ? [].concat(...g.rooms.map((r) => r.entities)) : [];
@@ -604,9 +610,10 @@ function renderTabs() {
     tabs.appendChild(b);
   };
   mk('alle', 'Alle');
-  rs.forEach((r) => mk(r.id, r.name));
+  rs.filter((r) => r.name !== SONSTIGES).forEach((r) => mk(r.id, r.name));
   if (szenen().length) mk('szenen', 'Szenen');
   mk('zeit', 'Zeit');
+  rs.filter((r) => r.name === SONSTIGES).forEach((r) => mk(r.id, r.name));
   const t2 = $('#tabs2'); t2.innerHTML = '';
   const grp = rs.find((x) => x.id === current);
   if (grp && grp.rooms.length > 1) {
@@ -643,7 +650,7 @@ function renderGrid() {
 }
 function lightsOn(list) { return list.filter((e) => e.startsWith('light.') && S[e] && S[e].state === 'on'); }
 function updateSummary() {
-  const all = entitiesOf('alle');
+  const all = entitiesOf('gesamt');
   const on = lightsOn(all).length;
   $('#sumBig').textContent = on === 0 ? 'Alle Lichter aus' : on + (on === 1 ? ' Licht an' : ' Lichter an');
   $('#sumSmall').textContent = all.filter((e) => e.startsWith('light.')).length + ' Lichter insgesamt';
@@ -789,7 +796,7 @@ function maybeBuild() {
 }
 
 $('#allOff').onclick = () => {
-  const l = lightsOn(entitiesOf(current === 'alle' || current === 'szenen' || current === 'zeit' ? 'alle' : current));
+  const l = lightsOn(entitiesOf(current === 'alle' || current === 'szenen' || current === 'zeit' ? 'gesamt' : current));
   if (l.length) call('light', 'turn_off', {}, l);
 };
 $('#upd').onclick = () => {
