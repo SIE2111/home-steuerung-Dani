@@ -207,7 +207,7 @@ const AREA_GRUPPE = { 'Terrasse': 'Terrasse' };
 const GRUPPEN_REIHENFOLGE = ['Obergeschoss', 'Untergeschoss'];
 /* ===================================================================== */
 
-const VERSION = 'v4.12 · 11.11. 22:20';
+const VERSION = 'v4.13 · 11.11. 22:30';
 const KEY = 'steuerung_tokens_v1';
 const TABKEY = 'steuerung_tab_v1';
 const ORIGIN = location.origin;
@@ -285,7 +285,7 @@ function setStatus(ok, text) {
 }
 function pollNotes() { if (ws && ws.readyState === 1) idNotes = send({ type: 'persistent_notification/get' }); }
 
-const TEMPLATE = "{% set ns = namespace(r=[]) %}{% for s in states if s.domain in ['light','switch','cover','input_boolean','scene','script'] %}{% set a = area_id(s.entity_id) %}{% if a %}{% set f = floor_id(a) %}{% set ns.r = ns.r + [[s.entity_id, a, area_name(a), (floor_name(f) if f else none)]] %}{% endif %}{% endfor %}{{ ns.r | to_json }}";
+const TEMPLATE = "{% set ns = namespace(r=[]) %}{% for s in states if s.domain in ['light','switch','cover','input_boolean','scene','script'] %}{% set a = area_id(s.entity_id) %}{% if a %}{% set f = floor_id(s.entity_id) %}{% set ns.r = ns.r + [[s.entity_id, a, area_name(a), (floor_name(f) if f else none)]] %}{% endif %}{% endfor %}{{ ns.r | to_json }}";
 
 async function connect() {
   try { tokens = await getTokens(); } catch (e) { showMsg('Anmeldung fehlgeschlagen.<br><b>' + esc(e.message) + '</b>'); return; }
