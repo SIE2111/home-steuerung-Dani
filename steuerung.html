@@ -191,6 +191,8 @@ const AUSSCHLUSS = [
   /permit_join|bridge/i,
   /backlight|vibration|momentary|countdown|indicator|induction|power_on|child_lock|led_|relay_status/i,
 ];
+// Kacheln, deren Name so beginnt, sind Wandschalter/Taster (nur Technik) und werden nicht gezeigt
+const SCHALTER_NAME = /^(szenen)?schalter\b/i;
 const GERAETE_DOMAINS = ['light', 'switch', 'cover', 'input_boolean'];
 const SZENEN_DOMAINS = ['scene', 'script'];
 const UPDATE_SKRIPT = 'script.steuerung_aktualisieren';
@@ -203,7 +205,7 @@ const AREA_GRUPPE = { 'Terrasse': 'Terrasse' };
 const GRUPPEN_REIHENFOLGE = ['Obergeschoss', 'Untergeschoss'];
 /* ===================================================================== */
 
-const VERSION = 'v4.9 · 11.11. 22:00';
+const VERSION = 'v4.10 · 11.11. 22:05';
 const KEY = 'steuerung_tokens_v1';
 const TABKEY = 'steuerung_tab_v1';
 const ORIGIN = location.origin;
@@ -444,7 +446,7 @@ function computeIssues() {
   const out = [], seen = new Set();
   Object.keys(S).forEach((e) => {
     const dom = e.split('.')[0], st = S[e], a = st.attributes || {};
-    if (GERAET_DOM_STOER.includes(dom) && st.state === 'unavailable' && !STOER_AUSNAHME.test(e) && !VERSTECKEN.includes(e)) {
+    if (GERAET_DOM_STOER.includes(dom) && st.state === 'unavailable' && !STOER_AUSNAHME.test(e) && !VERSTECKEN.includes(e) && !(dom === 'switch' && SCHALTER_NAME.test(nameOf(e)))) {
       const n = nameOf(e).replace(/\s+L\d+$/i, '').trim();
       if (!seen.has(n)) { seen.add(n); out.push({ level: 'fault', text: n + ' nicht erreichbar', sub: 'Störung · Gerät meldet sich nicht', key: 'u:' + n }); }
     }
@@ -499,7 +501,7 @@ function renderIssues() {
 function showMsg(html) { const m = $('#msg'); m.innerHTML = html; m.hidden = false; }
 function visible(eid) {
   const dom = eid.split('.')[0];
-  return S[eid] && GERAETE_DOMAINS.includes(dom) && !VERSTECKEN.includes(eid) && !AUSSCHLUSS.some((rx) => rx.test(eid));
+  return S[eid] && GERAETE_DOMAINS.includes(dom) && !VERSTECKEN.includes(eid) && !AUSSCHLUSS.some((rx) => rx.test(eid)) && !(dom === 'switch' && SCHALTER_NAME.test(nameOf(eid)));
 }
 function sortEnt(e) {
   const o = { light: 0, switch: 1, cover: 2, input_boolean: 3, scene: 4, script: 5 };
