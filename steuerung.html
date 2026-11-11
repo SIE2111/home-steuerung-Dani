@@ -207,7 +207,7 @@ const AREA_GRUPPE = { 'Terrasse': 'Terrasse' };
 const GRUPPEN_REIHENFOLGE = ['Obergeschoss', 'Untergeschoss'];
 /* ===================================================================== */
 
-const VERSION = 'v4.11 · 11.11. 22:15';
+const VERSION = 'v4.12 · 11.11. 22:20';
 const KEY = 'steuerung_tokens_v1';
 const TABKEY = 'steuerung_tab_v1';
 const ORIGIN = location.origin;
@@ -332,7 +332,16 @@ async function connect() {
         const ar = byArea[x[1]] = byArea[x[1]] || { id: x[1], name: x[2], floor: x[3], entities: [] };
         ar.entities.push(x[0]);
       });
-      AREAS = Object.values(byArea);
+      // Gleichnamige Bereiche zusammenführen (Etage vom Bereich übernehmen, der eine hat)
+      const byName = {};
+      Object.values(byArea).forEach((ar) => {
+        const k = (ar.name || '').trim().toLowerCase();
+        const t = byName[k];
+        if (!t) { byName[k] = Object.assign({ ids: [ar.id] }, ar); return; }
+        t.ids.push(ar.id); t.entities = t.entities.concat(ar.entities);
+        if (!t.floor && ar.floor) t.floor = ar.floor;
+      });
+      AREAS = Object.values(byName);
       console.log('[steuerung] bereiche', JSON.stringify(AREAS));
       haveAreas = true; maybeBuild();
     } else if (m.type === 'result' && m.id === idUser && m.success) {
@@ -809,7 +818,7 @@ $('#upd').onclick = () => {
 };
 $('#ver').textContent = ' · ' + VERSION;
 $('#ver').style.cursor = 'pointer';
-$('#ver').onclick = () => toast('Bereiche: ' + (AREAS.map((a) => a.name + ' → ' + (a.floor || 'keine Etage') + ' (' + (a.entities || []).length + ')').join(' | ') || 'keine'), true);
+$('#ver').onclick = () => toast('Bereiche: ' + (AREAS.map((a) => a.name + ' [' + (a.ids || [a.id]).join('+') + '] → ' + (a.floor || 'keine Etage') + ' (' + (a.entities || []).length + ')').join(' | ') || 'keine'), true);
 $('#logout').onclick = () => { localStorage.removeItem(KEY); location.reload(); };
 connect();
 </script>
