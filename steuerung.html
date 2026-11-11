@@ -207,7 +207,7 @@ const AREA_GRUPPE = { 'Terrasse': 'Terrasse' };
 const GRUPPEN_REIHENFOLGE = ['Obergeschoss', 'Untergeschoss'];
 /* ===================================================================== */
 
-const VERSION = 'v4.15 · 11.11. 22:45';
+const VERSION = 'v4.16 · 11.11. 22:55';
 const KEY = 'steuerung_tokens_v1';
 const TABKEY = 'steuerung_tab_v1';
 const ORIGIN = location.origin;
@@ -217,6 +217,7 @@ const $ = (s) => document.querySelector(s);
 const esc = (t) => String(t == null ? '' : t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 let pending = {}, toastTimer = null;
+const ROOM = {}, DEVNAME = {};
 let S = {}, AREAS = [], NOTES = [], WEATHER = null, HACFG = null, cards = {}, current = 'alle';
 let ws = null, wsId = 0, tokens = null, userName = '', retry = 0, haveStates = false, haveAreas = false;
 let idNotes = 0, notesTimer = null, weatherTimer = null, issueTimer = null;
@@ -285,7 +286,7 @@ function setStatus(ok, text) {
 }
 function pollNotes() { if (ws && ws.readyState === 1) idNotes = send({ type: 'persistent_notification/get' }); }
 
-const TEMPLATE = "{% set ns = namespace(r=[]) %}{% for s in states if s.domain in ['light','switch','cover','input_boolean','scene','script'] %}{% set a = area_id(s.entity_id) %}{% if a %}{% set f = floor_id(s.entity_id) %}{% set ns.r = ns.r + [[s.entity_id, a, area_name(a), (floor_name(f) if f else none)]] %}{% endif %}{% endfor %}{{ ns.r | to_json }}";
+const TEMPLATE = "{% set ns = namespace(r=[]) %}{% for s in states if s.domain in ['light','switch','cover','input_boolean','scene','script'] %}{% set a = area_id(s.entity_id) %}{% if a %}{% set f = floor_id(s.entity_id) %}{% set ns.r = ns.r + [[s.entity_id, a, area_name(a), (floor_name(f) if f else none), (device_attr(s.entity_id, 'name_by_user') or device_attr(s.entity_id, 'name'))]] %}{% endif %}{% endfor %}{{ ns.r | to_json }}";
 
 async function connect() {
   try { tokens = await getTokens(); } catch (e) { showMsg('Anmeldung fehlgeschlagen.<br><b>' + esc(e.message) + '</b>'); return; }
@@ -330,7 +331,7 @@ async function connect() {
       (Array.isArray(r) ? r : []).forEach((x) => {
         if (!Array.isArray(x)) return;
         const ar = byArea[x[1]] = byArea[x[1]] || { id: x[1], name: x[2], floor: x[3], entities: [] };
-        ar.entities.push(x[0]);
+        ar.entities.push(x[0]); ROOM[x[0]] = x[2]; if (x[4]) DEVNAME[x[0]] = x[4];
       });
       // Gleichnamige Bereiche zusammenführen (Etage vom Bereich übernehmen, der eine hat)
       const byName = {};
@@ -444,6 +445,17 @@ function updateWeatherFromEntity() {
 /* ---------- Hinweise & Störungen ---------- */
 const GERAET_DOM_STOER = ['light', 'switch', 'cover', 'lock', 'climate', 'fan'];
 const STOER_AUSNAHME = /permit_join|bridge|backlight|vibration|momentary|countdown|indicator|induction|power_on|child_lock|led_|relay_status/i;
+// Kachelname: nur der Kanal (ohne Gerätename). Ist der Kanal nur L1/L2…, bleibt der Gerätename davor.
+function tileName(eid) {
+  if (UMBENENNEN[eid]) return UMBENENNEN[eid];
+  const full = nameOf(eid), dev = DEVNAME[eid];
+  if (!dev) return full;
+  const esc2 = dev.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  let ch = full.replace(new RegExp('^(' + esc2 + '\\s*)+', 'i'), '').trim();
+  if (!ch) return dev;
+  if (/^(l|kanal|ch|switch|ausgang)?\s*\d+$/i.test(ch)) return dev + ' ' + ch;
+  return ch;
+}
 function nameOf(eid) {
   if (UMBENENNEN[eid]) return UMBENENNEN[eid];
   let n = (S[eid] && S[eid].attributes && S[eid].attributes.friendly_name) || eid;
@@ -595,7 +607,7 @@ function makeCard(eid) {
   const DE = { on: 'An', off: 'Aus', unavailable: 'Nicht erreichbar', unknown: 'Unbekannt', open: 'Offen', closed: 'Geschlossen', opening: 'Öffnet …', closing: 'Schließt …' };
   function update(st) {
     const a = st.attributes || {};
-    nm.textContent = nameOf(eid);
+    nm.textContent = tileName(eid);
     const on = st.state === 'on' || st.state === 'open' || st.state === 'opening';
     el.classList.toggle('on', on && dom !== 'scene' && dom !== 'script');
     el.classList.toggle('unavailable', st.state === 'unavailable');
@@ -604,7 +616,7 @@ function makeCard(eid) {
     if (dom === 'cover' && typeof a.current_position === 'number') txt += ' · ' + a.current_position + ' %';
     if (dom === 'scene') txt = 'Szene';
     if (dom === 'script') txt = 'Skript';
-    sub.textContent = txt;
+    sub.textContent = (ROOM[eid] && current !== 'zeit' && !(currentRoom !== 'alle' && current.startsWith('g:')) ? ROOM[eid] + ' · ' : '') + txt;
     if (slider) {
       const modes = a.supported_color_modes || [];
       const show = modes.some((m) => m !== 'onoff') && st.state === 'on';
