@@ -207,7 +207,7 @@ const AREA_GRUPPE = { 'Terrasse': 'Terrasse' };
 const GRUPPEN_REIHENFOLGE = ['Obergeschoss', 'Untergeschoss'];
 /* ===================================================================== */
 
-const VERSION = 'v4.18 · 13.11. 08:00';
+const VERSION = 'v4.19 · 13.11. 08:10';
 const KEY = 'steuerung_tokens_v1';
 const TABKEY = 'steuerung_tab_v1';
 const ORIGIN = location.origin;
@@ -218,6 +218,7 @@ const esc = (t) => String(t == null ? '' : t).replace(/[&<>"']/g, (c) => ({ '&':
 
 let pending = {}, toastTimer = null;
 const ROOM = {}, DEVNAME = {};
+let isAdmin = false;
 let S = {}, AREAS = [], NOTES = [], WEATHER = null, HACFG = null, cards = {}, current = 'alle';
 let ws = null, wsId = 0, tokens = null, userName = '', retry = 0, haveStates = false, haveAreas = false;
 let idNotes = 0, notesTimer = null, weatherTimer = null, issueTimer = null;
@@ -346,7 +347,7 @@ async function connect() {
       console.log('[steuerung] bereiche', JSON.stringify(AREAS));
       haveAreas = true; maybeBuild();
     } else if (m.type === 'result' && m.id === idUser && m.success) {
-      userName = m.result.name || '';
+      userName = m.result.name || ''; isAdmin = !!m.result.is_admin;
       $('#hello').textContent = new Date().toLocaleDateString('de-AT', { weekday: 'long', day: 'numeric', month: 'long' });
       $('#greet').textContent = greeting() + (userName ? ', ' + userName.split(' ')[0] : '');
       $('#who').textContent = userName ? 'Angemeldet als ' + userName : '';
@@ -802,6 +803,13 @@ async function saveAutomation() {
     mode: 'single'
   };
   const id = 'steuerung_' + Date.now();
+  if (!isAdmin) {
+    // Nicht-Administratoren: über shell_command in Home Assistant (siehe configuration.yaml)
+    const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(cfg))));
+    call('shell_command', 'steuerung_timer_speichern', { id, cfg: b64 });
+    toast('Zeitschaltuhr gespeichert', true);
+    return;
+  }
   try {
     const r = await apiFetch('/api/config/automation/config/' + id, { method: 'POST', body: JSON.stringify(cfg) });
     if (r.status === 401 || r.status === 403) { toast('Nur Administratoren können Zeitschaltuhren anlegen.'); return; }
@@ -812,6 +820,12 @@ async function saveAutomation() {
 }
 async function deleteAutomation(id, nm) {
   if (!confirm('„' + (nm || 'Automatisierung') + '“ endgültig löschen?\n\nDas lässt sich nicht rückgängig machen.')) return;
+  if (!isAdmin) {
+    if (!/^[A-Za-z0-9_]+$/.test(id)) { toast('Diese Automatisierung kann nur ein Administrator löschen.'); return; }
+    call('shell_command', 'steuerung_timer_loeschen', { id });
+    toast('Gelöscht', true);
+    return;
+  }
   try {
     const r = await apiFetch('/api/config/automation/config/' + id, { method: 'DELETE' });
     if (r.status === 401 || r.status === 403) { toast('Nur Administratoren können löschen.'); return; }
