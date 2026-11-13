@@ -207,7 +207,7 @@ const AREA_GRUPPE = { 'Terrasse': 'Terrasse' };
 const GRUPPEN_REIHENFOLGE = ['Obergeschoss', 'Untergeschoss'];
 /* ===================================================================== */
 
-const VERSION = 'v4.16 · 11.11. 22:55';
+const VERSION = 'v4.17 · 13.11. 07:50';
 const KEY = 'steuerung_tokens_v1';
 const TABKEY = 'steuerung_tab_v1';
 const ORIGIN = location.origin;
@@ -446,7 +446,15 @@ function updateWeatherFromEntity() {
 const GERAET_DOM_STOER = ['light', 'switch', 'cover', 'lock', 'climate', 'fan'];
 const STOER_AUSNAHME = /permit_join|bridge|backlight|vibration|momentary|countdown|indicator|induction|power_on|child_lock|led_|relay_status/i;
 // Kachelname: nur der Kanal (ohne Gerätename). Ist der Kanal nur L1/L2…, bleibt der Gerätename davor.
+// Zweiteilig: Raumname aus dem Titel nehmen, er steht in der Unterzeile
 function tileName(eid) {
+  const n = tileName0(eid), r = ROOM[eid];
+  if (!r || UMBENENNEN[eid]) return n;
+  const rx = new RegExp('(^|\\s)' + r.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?=\\s|$)', 'i');
+  const t = n.replace(rx, ' ').replace(/\s+/g, ' ').trim();
+  return t || n;
+}
+function tileName0(eid) {
   if (UMBENENNEN[eid]) return UMBENENNEN[eid];
   const full = nameOf(eid), dev = DEVNAME[eid];
   if (!dev) return full;
