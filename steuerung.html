@@ -207,7 +207,7 @@ const AREA_GRUPPE = { 'Terrasse': 'Terrasse' };
 const GRUPPEN_REIHENFOLGE = ['Obergeschoss', 'Untergeschoss'];
 /* ===================================================================== */
 
-const VERSION = 'v4.17 · 13.11. 07:50';
+const VERSION = 'v4.18 · 13.11. 08:00';
 const KEY = 'steuerung_tokens_v1';
 const TABKEY = 'steuerung_tab_v1';
 const ORIGIN = location.origin;
@@ -708,10 +708,10 @@ function renderZeitList() {
   let html = '';
   const paused = autos.filter((e) => S[e].state !== 'on');
   autos.filter((e) => showPaused || S[e].state === 'on').forEach((e) => {
-    const st = S[e], a = st.attributes || {}, mine = String(a.id || '').startsWith('steuerung_');
+    const st = S[e], a = st.attributes || {}, mine = !!a.id;
     html += '<div class="zrow ' + (st.state === 'on' ? '' : 'off') + '"><div class="nt">' + esc(nameOf(e).replace(/^Zeitschaltuhr:\s*/, '⏰ ')) +
       '<small>zuletzt: ' + esc(rel(a.last_triggered)) + (st.state === 'on' ? '' : ' · pausiert') + '</small></div>' +
-      (mine ? '<button class="zdel" data-del="' + esc(a.id) + '">Löschen</button>' : '') +
+      (mine ? '<button class="zdel" data-del="' + esc(a.id) + '" data-nm="' + esc(nameOf(e)) + '">Löschen</button>' : '') +
       '<button class="tog" style="' + (st.state === 'on' ? 'background:var(--accent);border-color:var(--accent)' : '') + '" data-tg="' + esc(e) + '" aria-label="An/Aus"></button></div>';
   });
   scheds.forEach((e) => {
@@ -730,7 +730,7 @@ function renderZeitList() {
     b.innerHTML = '<span style="position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:' + (on ? '#fff' : '#C9CDD6') + ';transform:translateX(' + (on ? 18 : 0) + 'px);transition:transform .2s"></span>';
     b.onclick = () => call('automation', 'toggle', {}, b.dataset.tg);
   });
-  box.querySelectorAll('[data-del]').forEach((b) => (b.onclick = () => deleteAutomation(b.dataset.del)));
+  box.querySelectorAll('[data-del]').forEach((b) => (b.onclick = () => deleteAutomation(b.dataset.del, b.dataset.nm)));
 }
 
 function zeitTargets() {
@@ -810,10 +810,11 @@ async function saveAutomation() {
     toast('Zeitschaltuhr gespeichert', true);
   } catch (e) { toast('Speichern fehlgeschlagen: ' + e.message); }
 }
-async function deleteAutomation(id) {
-  if (!confirm('Diese Zeitschaltuhr löschen?')) return;
+async function deleteAutomation(id, nm) {
+  if (!confirm('„' + (nm || 'Automatisierung') + '“ endgültig löschen?\n\nDas lässt sich nicht rückgängig machen.')) return;
   try {
     const r = await apiFetch('/api/config/automation/config/' + id, { method: 'DELETE' });
+    if (r.status === 401 || r.status === 403) { toast('Nur Administratoren können löschen.'); return; }
     if (!r.ok) { toast('Löschen fehlgeschlagen (' + r.status + ')'); return; }
     call('automation', 'reload', {});
     toast('Gelöscht', true);
