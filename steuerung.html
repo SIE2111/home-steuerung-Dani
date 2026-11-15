@@ -117,6 +117,21 @@
   .day.on{background:var(--accent);color:#16130B;border-color:var(--accent)}
   .primary{background:var(--accent);color:#16130B;border:0;border-radius:14px;padding:13px;font-size:16px;font-weight:700;cursor:pointer}
 
+  /* Energie */
+  .etot{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:18px}
+  .ebox{background:linear-gradient(150deg,#1F2A3D 0%,#1A1D24 70%);border:1px solid var(--line);border-radius:20px;padding:14px 16px}
+  .ebox .v{font-size:28px;font-weight:750;letter-spacing:-.02em}
+  .ebox .l{font-size:13px;color:var(--muted);margin-top:2px}
+  .egrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+  .ecard{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:14px 16px}
+  .ecard.act{border-color:#5A4720;background:linear-gradient(150deg,#2E2614 0%,#1A1D24 70%)}
+  .ecard .nm{margin-bottom:2px}
+  .erow{display:flex;justify-content:space-between;padding:7px 0;border-top:1px solid var(--line);font-size:14px}
+  .erow:first-of-type{margin-top:8px}
+  .erow span{color:var(--muted)} .erow b{font-weight:650}
+  .ebar{height:6px;border-radius:4px;background:rgba(255,255,255,.08);margin-top:10px;overflow:hidden}
+  .ebar i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:4px}
+
   @media(min-width:900px){
     .wrap{max-width:1360px}
     #app:not([hidden]){display:grid;grid-template-columns:360px minmax(0,1fr);gap:20px;align-items:start}
@@ -164,6 +179,7 @@
       <div class="zh">Neue Zeitschaltuhr</div>
       <div class="zform" id="zform"></div>
     </section>
+    <section id="energie" hidden></section>
     </div>
   </div>
   <div id="toast"></div>
@@ -207,7 +223,7 @@ const AREA_GRUPPE = { 'Terrasse': 'Terrasse' };
 const GRUPPEN_REIHENFOLGE = ['Obergeschoss', 'Untergeschoss'];
 /* ===================================================================== */
 
-const VERSION = 'v4.19 · 13.11. 08:10';
+const VERSION = 'v4.20 · 15.11. 10:30';
 const KEY = 'steuerung_tokens_v1';
 const TABKEY = 'steuerung_tab_v1';
 const ORIGIN = location.origin;
@@ -220,6 +236,7 @@ let pending = {}, toastTimer = null;
 const ROOM = {}, DEVNAME = {};
 let isAdmin = false;
 let S = {}, AREAS = [], NOTES = [], WEATHER = null, HACFG = null, cards = {}, current = 'alle';
+let ENERGIE = [], energieTimer = null;
 let ws = null, wsId = 0, tokens = null, userName = '', retry = 0, haveStates = false, haveAreas = false;
 let idNotes = 0, notesTimer = null, weatherTimer = null, issueTimer = null;
 
@@ -288,12 +305,14 @@ function setStatus(ok, text) {
 function pollNotes() { if (ws && ws.readyState === 1) idNotes = send({ type: 'persistent_notification/get' }); }
 
 const TEMPLATE = "{% set ns = namespace(r=[]) %}{% for s in states if s.domain in ['light','switch','cover','input_boolean','scene','script'] %}{% set a = area_id(s.entity_id) %}{% if a %}{% set f = floor_id(s.entity_id) %}{% set ns.r = ns.r + [[s.entity_id, a, area_name(a), (floor_name(f) if f else none), (device_attr(s.entity_id, 'name_by_user') or device_attr(s.entity_id, 'name'))]] %}{% endif %}{% endfor %}{{ ns.r | to_json }}";
+// Strommessungen: alle Sensoren für Leistung, Energie, Spannung und Strom mit Gerätename und Raum
+const ENERGIE_TEMPLATE = "{% set ns = namespace(r=[]) %}{% for s in states.sensor if s.attributes.device_class in ['power','energy','voltage','current'] %}{% set ns.r = ns.r + [[s.entity_id, (device_attr(s.entity_id, 'name_by_user') or device_attr(s.entity_id, 'name') or ''), (area_name(s.entity_id) or '')]] %}{% endfor %}{{ ns.r | to_json }}";
 
 async function connect() {
   try { tokens = await getTokens(); } catch (e) { showMsg('Anmeldung fehlgeschlagen.<br><b>' + esc(e.message) + '</b>'); return; }
   const proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
   ws = new WebSocket(proto + location.host + '/api/websocket');
-  let idStates = 0, idUser = 0, idTpl = 0, idCfg = 0;
+  let idStates = 0, idUser = 0, idTpl = 0, idCfg = 0, idEnTpl = 0;
   ws.onmessage = (ev) => {
     const m = JSON.parse(ev.data);
     if (m.type === 'auth_required') {
@@ -307,6 +326,7 @@ async function connect() {
       idUser = send({ type: 'auth/current_user' });
       idCfg = send({ type: 'get_config' });
       idTpl = send({ type: 'render_template', template: TEMPLATE, timeout: 8 });
+      idEnTpl = send({ type: 'render_template', template: ENERGIE_TEMPLATE, timeout: 8 });
       send({ type: 'subscribe_events', event_type: 'state_changed' });
       pollNotes();
       clearInterval(notesTimer); notesTimer = setInterval(pollNotes, 60000);
@@ -323,6 +343,13 @@ async function connect() {
       const r = m.success ? m.result : null;
       NOTES = !r ? [] : Array.isArray(r) ? r : Object.keys(r).map((k) => Object.assign({ notification_id: k }, r[k]));
       scheduleIssues();
+    } else if (m.type === 'event' && m.id === idEnTpl) {
+      let r = m.event.result;
+      try { if (typeof r === 'string') r = JSON.parse(r); } catch (e) { r = []; }
+      const hadTab = ENERGIE.length > 0;
+      ENERGIE = (Array.isArray(r) ? r : []).filter(Array.isArray).map((x) => ({ eid: x[0], dev: x[1] || '', room: x[2] || '' }));
+      if (haveStates && haveAreas && hadTab !== ENERGIE.length > 0) renderTabs();
+      if (current === 'energie') renderEnergie();
     } else if (m.type === 'result' && m.id === idTpl && !m.success) {
       haveAreas = true; AREAS = []; maybeBuild();
     } else if (m.type === 'event' && m.id === idTpl) {
@@ -359,6 +386,7 @@ async function connect() {
         updateSummary();
         scheduleIssues();
         if (current === 'zeit' && (d.entity_id.startsWith('automation.') || d.entity_id.startsWith('schedule.'))) renderZeitList();
+        if (current === 'energie' && ENERGIE.some((x) => x.eid === d.entity_id)) scheduleEnergie();
       } else if (d.entity_id) { delete S[d.entity_id]; scheduleIssues(); if (current === 'zeit') renderZeitList(); }
     }
   };
@@ -650,6 +678,7 @@ function renderTabs() {
   rs.filter((r) => r.name !== SONSTIGES).forEach((r) => mk(r.id, r.name));
   if (szenen().length) mk('szenen', 'Szenen');
   mk('zeit', 'Zeit');
+  if (ENERGIE.length) mk('energie', 'Energie');
   rs.filter((r) => r.name === SONSTIGES).forEach((r) => mk(r.id, r.name));
   const t2 = $('#tabs2'); t2.innerHTML = '';
   const grp = rs.find((x) => x.id === current);
@@ -667,8 +696,10 @@ function renderTabs() {
   } else t2.hidden = true;
 }
 function renderGrid() {
-  const g = $('#grid'), z = $('#zeit');
+  const g = $('#grid'), z = $('#zeit'), en = $('#energie');
   g.innerHTML = ''; cards = {};
+  en.hidden = current !== 'energie';
+  if (current === 'energie') { g.hidden = true; z.hidden = true; renderEnergie(); updateSummary(); return; }
   if (current === 'zeit') { g.hidden = true; z.hidden = false; renderZeitList(); renderZeitForm(); updateSummary(); return; }
   g.hidden = false; z.hidden = true;
   let e = entitiesOf(current);
@@ -694,6 +725,64 @@ function updateSummary() {
   const on = lightsOn(all).length;
   $('#sumBig').textContent = on === 0 ? 'Alle Lichter aus' : on + (on === 1 ? ' Licht an' : ' Lichter an');
   $('#sumSmall').textContent = all.filter(isLight).length + ' Lichter insgesamt';
+}
+
+/* ---------- Energie (Strommessungen) ---------- */
+const EN_ART = { power: ['Leistung', 'W'], energy: ['Verbrauch', 'kWh'], voltage: ['Spannung', 'V'], current: ['Strom', 'A'] };
+const EN_ORDER = ['power', 'energy', 'current', 'voltage'];
+function enNum(eid) {
+  const st = S[eid]; if (!st) return null;
+  const v = parseFloat(st.state);
+  return isNaN(v) ? null : v;
+}
+function enFmt(cls, v, unit) {
+  if (v === null) return '–';
+  let d = 1;
+  if (cls === 'power') d = v >= 100 ? 0 : 1;
+  if (cls === 'current') d = 2;
+  if (cls === 'energy') d = 2;
+  return v.toLocaleString('de-AT', { minimumFractionDigits: d, maximumFractionDigits: d }) + ' ' + (unit || '');
+}
+function scheduleEnergie() { clearTimeout(energieTimer); energieTimer = setTimeout(renderEnergie, 400); }
+function renderEnergie() {
+  const box = $('#energie'); if (!box) return;
+  // Sensoren nach Gerät zusammenfassen
+  const devs = {};
+  ENERGIE.forEach((x) => {
+    const st = S[x.eid]; if (!st) return;
+    const cls = (st.attributes || {}).device_class;
+    if (!EN_ART[cls]) return;
+    const key = x.dev || nameOf(x.eid);
+    const d = devs[key] = devs[key] || { name: key, room: x.room, s: {} };
+    if (!d.room && x.room) d.room = x.room;
+    if (!d.s[cls]) d.s[cls] = x.eid;
+  });
+  const list = Object.values(devs);
+  if (!list.length) { box.innerHTML = '<div style="color:var(--muted);text-align:center;padding:40px 0">Keine Strommessungen gefunden.</div>'; return; }
+  let sumW = 0, sumKwh = 0, hasKwh = false, maxW = 1;
+  list.forEach((d) => {
+    const w = d.s.power ? enNum(d.s.power) : null; d.w = w;
+    if (w !== null) { sumW += w; maxW = Math.max(maxW, w); }
+    const k = d.s.energy ? enNum(d.s.energy) : null;
+    if (k !== null) { sumKwh += k; hasKwh = true; }
+  });
+  list.sort((a, b) => (b.w || 0) - (a.w || 0) || a.name.localeCompare(b.name, 'de'));
+  let html = '<div class="etot"><div class="ebox"><div class="v">' + enFmt('power', sumW, 'W') + '</div><div class="l">Leistung jetzt (gemessene Geräte)</div></div>' +
+    '<div class="ebox"><div class="v">' + (hasKwh ? enFmt('energy', sumKwh, 'kWh') : '–') + '</div><div class="l">' + (hasKwh ? 'Verbrauch gesamt (Zählerstand)' : 'Kein Verbrauchszähler vorhanden') + '</div></div></div>';
+  html += '<div class="zh">Geräte mit Strommessung</div><div class="egrid">';
+  list.forEach((d) => {
+    const act = d.w !== null && d.w >= 1;
+    html += '<div class="ecard' + (act ? ' act' : '') + '"><div class="nm">' + esc(d.name) + '</div>' + (d.room ? '<div class="sub">' + esc(d.room) + '</div>' : '');
+    EN_ORDER.forEach((cls) => {
+      const eid = d.s[cls]; if (!eid) return;
+      const st = S[eid], unit = (st.attributes || {}).unit_of_measurement || EN_ART[cls][1];
+      html += '<div class="erow"><span>' + EN_ART[cls][0] + '</span><b>' + (st.state === 'unavailable' ? 'nicht erreichbar' : enFmt(cls, enNum(eid), unit)) + '</b></div>';
+    });
+    if (d.w !== null) html += '<div class="ebar"><i style="width:' + Math.min(100, Math.round((d.w / maxW) * 100)) + '%"></i></div>';
+    html += '</div>';
+  });
+  html += '</div>';
+  box.innerHTML = html;
 }
 
 /* ---------- Zeitsteuerung ---------- */
@@ -840,7 +929,7 @@ function maybeBuild() {
   $('#msg').hidden = true; $('#app').hidden = false; $('#logout').hidden = false;
   $('#upd').hidden = !S[UPDATE_SKRIPT];
   let saved = 'alle'; try { saved = localStorage.getItem(TABKEY) || 'alle'; } catch (e) {}
-  const valid = ['alle', 'zeit'].concat(groups().map((r) => r.id)).concat(szenen().length ? ['szenen'] : []);
+  const valid = ['alle', 'zeit', 'energie'].concat(groups().map((r) => r.id)).concat(szenen().length ? ['szenen'] : []);
   current = valid.includes(saved) ? saved : 'alle';
   try { currentRoom = localStorage.getItem(TABKEY + 'r') || 'alle'; } catch (e) {}
   const gg = groups().find((x) => x.id === current);
@@ -850,7 +939,7 @@ function maybeBuild() {
 }
 
 $('#allOff').onclick = () => {
-  const l = lightsOn(entitiesOf(current === 'alle' || current === 'szenen' || current === 'zeit' ? 'gesamt' : current));
+  const l = lightsOn(entitiesOf(current === 'alle' || current === 'szenen' || current === 'zeit' || current === 'energie' ? 'gesamt' : current));
   if (l.length) call('homeassistant', 'turn_off', {}, l);
 };
 $('#upd').onclick = () => {
