@@ -59,6 +59,7 @@
   .srow + .srow{border-top:1px solid var(--line)}
   .sbtns{display:flex;gap:8px;flex:none}
   #covRows .cblk{border-top:1px solid var(--line);padding-bottom:6px}
+  .lblk{padding-bottom:6px}
   .csel{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:2px 0 8px}
   .csel::-webkit-scrollbar{display:none}
   .csel button{flex:none;background:transparent;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
@@ -192,10 +193,7 @@
     <aside class="side"><div class="weather" id="weather" hidden></div>
     <div class="notes" id="notes" hidden></div>
     <div class="summary">
-      <div class="srow">
-        <div><div class="big" id="sumBig"></div><div class="small" id="sumSmall"></div></div>
-        <button class="pill" id="allOff">Alles aus</button>
-      </div>
+      <div id="litRows" style="display:contents"></div>
       <div id="covRows" style="display:contents"></div>
     </div></aside>
     <div class="mainc">
@@ -253,7 +251,7 @@ const AREA_GRUPPE = { 'Terrasse': 'Terrasse' };
 const GRUPPEN_REIHENFOLGE = ['Obergeschoss', 'Untergeschoss'];
 /* ===================================================================== */
 
-const VERSION = 'v4.29 · 17.11. 21:30';
+const VERSION = 'v4.30 · 17.11. 21:35';
 const KEY = 'steuerung_tokens_v1';
 const TABKEY = 'steuerung_tab_v1';
 const ORIGIN = location.origin;
@@ -869,12 +867,7 @@ function covOffen(e) {
 let covSig = '';
 function kippbar(e) { const a = (S[e] || {}).attributes || {}; return typeof a.current_tilt_position === 'number' || !!((a.supported_features || 0) & 128); }
 function updateSummary() {
-  const scope = summaryScope();
-  const all = entitiesOf(scope);
-  const on = lightsOn(all).length;
-  const etage = scope === 'gesamt' ? '' : scope.slice(2) + ': ';
-  $('#sumBig').textContent = etage + (on === 0 ? 'Alle Lichter aus' : on + (on === 1 ? ' Licht an' : ' Lichter an'));
-  $('#sumSmall').textContent = all.filter(isLight).length + ' Lichter insgesamt';
+  updateLichtBlock();
   // Jalousien: ein Block, Auswahl Etage × Seite (kombinierbar)
   const box = $('#covRows');
   const allCov = covAlle();
@@ -918,6 +911,52 @@ function updateSummary() {
   const name = [et.find((x) => x.id === covEt), sd.find((x) => x.id === covSd)].filter((x) => x && x.id !== 'alle').map((x) => x.name).join(' · ') || 'Alle';
   const offen = sel.filter(covOffen).length;
   box.querySelector('.small').textContent = name + ': ' + (!sel.length ? 'keine Jalousien' : offen === 0 ? 'alle unten · ' + sel.length + ' gesamt' : offen + ' von ' + sel.length + ' offen');
+}
+// Lichter: ein Block mit Auswahl der Etage und Helligkeit für dimmbare Lichter
+let litEt = 'alle', litSig = '';
+try { litEt = localStorage.getItem(TABKEY + 'le') || 'alle'; } catch (e) {}
+function litVon(g) { return [].concat(...g.rooms.map((r) => r.entities)).filter(isLight); }
+function litAuswahl() {
+  if (litEt === 'alle') return [].concat(...groups().map(litVon));
+  const g = groups().find((x) => x.id === litEt); return g ? litVon(g) : [];
+}
+function dimmbar(e) {
+  if (!e.startsWith('light.')) return false;
+  const m = ((S[e] || {}).attributes || {}).supported_color_modes;
+  return Array.isArray(m) ? m.some((x) => x !== 'onoff') : typeof ((S[e] || {}).attributes || {}).brightness === 'number';
+}
+function updateLichtBlock() {
+  const box = $('#litRows');
+  const et = [{ id: 'alle', name: 'Alle Etagen' }].concat(groups().filter((g) => litVon(g).length).map((g) => ({ id: g.id, name: g.name })));
+  if (!et.some((x) => x.id === litEt)) litEt = 'alle';
+  const sel = litAuswahl();
+  const sig = et.map((x) => x.id).join('|') + '#' + litEt + '#' + sel.some(dimmbar);
+  if (sig !== litSig) {
+    litSig = sig;
+    box.innerHTML = '<div class="cblk lblk"><div class="srow"><div><div class="big">Lichter</div><div class="small"></div></div>' +
+      '<div class="sbtns"><button class="pill" data-s="on">An</button><button class="pill" data-s="off">Aus</button></div></div>' +
+      (et.length > 2 ? '<div class="csel">' + et.map((x) => '<button data-v="' + esc(x.id) + '"' + (x.id === litEt ? ' class="act"' : '') + '>' + esc(x.name) + '</button>').join('') + '</div>' : '') +
+      (sel.some(dimmbar) ? '<div class="cchips" data-art="dim"><span class="cl">Helligkeit</span>' + [20, 40, 60, 80, 100].map((p) => '<button data-p="' + p + '">' + p + ' %</button>').join('') + '</div>' : '') + '</div>';
+    box.querySelectorAll('.csel button').forEach((b) => (b.onclick = () => {
+      litEt = b.dataset.v; try { localStorage.setItem(TABKEY + 'le', litEt); } catch (e) {} updateSummary();
+    }));
+    box.querySelectorAll('.srow button, .cchips button').forEach((b) => (b.onclick = () => {
+      const l = litAuswahl(); if (!l.length) return;
+      if (b.dataset.s === 'off') { const on = lightsOn(l); if (on.length) call('homeassistant', 'turn_off', {}, on); return; }
+      if (b.dataset.s === 'on') { call('homeassistant', 'turn_on', {}, l); return; }
+      const d = l.filter(dimmbar); if (d.length) call('light', 'turn_on', { brightness_pct: Number(b.dataset.p) }, d);
+    }));
+  }
+  // Helligkeit markieren, wenn alle eingeschalteten dimmbaren Lichter gleich hell sind
+  const r = box.querySelector('.cchips[data-art="dim"]');
+  if (r) {
+    const v = sel.filter((e) => dimmbar(e) && S[e] && S[e].state === 'on').map((e) => Math.round(((S[e].attributes || {}).brightness || 0) / 2.55));
+    const same = v.length && v.every((x) => Math.abs(x - v[0]) <= 8);
+    r.querySelectorAll('button').forEach((b) => b.classList.toggle('sel', !!same && Math.abs(Number(b.dataset.p) - v[0]) <= 8));
+  }
+  const on = lightsOn(sel).length;
+  const name = (et.find((x) => x.id === litEt) || {}).name || 'Alle Etagen';
+  box.querySelector('.small').textContent = (litEt === 'alle' ? '' : name + ': ') + (on === 0 ? 'alle aus · ' + sel.length + ' gesamt' : on + ' von ' + sel.length + ' an');
 }
 let covEt = 'alle', covSd = 'alle';
 try { covEt = localStorage.getItem(TABKEY + 'ce') || 'alle'; covSd = localStorage.getItem(TABKEY + 'cs') || 'alle'; } catch (e) {}
@@ -1150,10 +1189,6 @@ function maybeBuild() {
   if (!WEATHER) updateWeatherFromEntity();
 }
 
-$('#allOff').onclick = () => {
-  const l = lightsOn(entitiesOf(current === 'alle' || current === 'szenen' || current === 'zeit' || current === 'energie' ? 'gesamt' : current));
-  if (l.length) call('homeassistant', 'turn_off', {}, l);
-};
 $('#upd').onclick = () => {
   call('script', 'turn_on', {}, UPDATE_SKRIPT);
   toast('Aktualisierung läuft – Seite lädt gleich neu …', true);
