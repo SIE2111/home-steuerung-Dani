@@ -119,7 +119,7 @@
   .tilt{margin-top:10px}
   .tilt .tl{font-size:12px;color:var(--muted);margin-bottom:6px}
   .tilt .btns{gap:6px}
-  .tilt .btn{padding:8px 0;font-size:13px;font-weight:600;white-space:nowrap;min-width:0}
+  .tilt .btn{padding:8px 0;font-size:12px;letter-spacing:-.2px;font-weight:600;white-space:nowrap;min-width:0}
   .tilt .btn.sel{background:var(--accent);color:#14161B;border-color:var(--accent)}
   .go{background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:12px;padding:10px 14px;font-size:14px;font-weight:600;cursor:pointer}
   .go:active{background:var(--accent);color:#14161B}
@@ -249,7 +249,7 @@ const AREA_GRUPPE = { 'Terrasse': 'Terrasse' };
 const GRUPPEN_REIHENFOLGE = ['Obergeschoss', 'Untergeschoss'];
 /* ===================================================================== */
 
-const VERSION = 'v4.26 · 17.11. 21:20';
+const VERSION = 'v4.27 · 17.11. 21:25';
 const KEY = 'steuerung_tokens_v1';
 const TABKEY = 'steuerung_tab_v1';
 const ORIGIN = location.origin;
@@ -609,7 +609,8 @@ function sortEnt(e, ids) {
   // Reihenfolge aus dem HA-Dashboard (falls dort im Raum umsortiert), sonst nach Name
   const dash = [].concat(...(ids || []).map((i) => ORD.dashEnt[i] || []));
   const di = (x) => { const i = dash.indexOf(x); return i < 0 ? 9999 : i; };
-  return e.slice().sort((a, b) => (o[a.split('.')[0]] - o[b.split('.')[0]]) || di(a) - di(b) || nameOf(a).localeCompare(nameOf(b), 'de'));
+  const tr = { licht: 0, schalter: 1, jalousie: 2, szene: 3 };
+  return e.slice().sort((a, b) => (tr[typOf(a)] - tr[typOf(b)]) || (o[a.split('.')[0]] - o[b.split('.')[0]]) || di(a) - di(b) || nameOf(a).localeCompare(nameOf(b), 'de'));
 }
 // Reihenfolge der Bereiche/Etagen wie in Home Assistant angelegt (Dashboard-Sortierung hat Vorrang)
 function areaRank(a) {
@@ -679,7 +680,8 @@ function szenen() {
 function entitiesOf(id) {
   const rs = rooms();
   const o = { light: 0, switch: 1, cover: 2, input_boolean: 3, scene: 4, script: 5 };
-  const inOrder = (list) => list.slice().sort((a, b) => o[a.split('.')[0]] - o[b.split('.')[0]]);
+  const tr = { licht: 0, schalter: 1, jalousie: 2, szene: 3 };
+  const inOrder = (list) => list.slice().sort((a, b) => tr[typOf(a)] - tr[typOf(b)]);
   const flat = (gs) => [].concat(...gs.map((g) => [].concat(...g.rooms.map((r) => r.entities))));
   if (id === 'alle') return inOrder(flat(groups().filter((g) => g.name !== SONSTIGES)));
   if (id === 'gesamt') return inOrder(flat(groups()));
@@ -712,10 +714,6 @@ function makeCard(eid) {
     ctl.appendChild(b); ico.onclick = () => call(dom, 'turn_on', {}, eid);
   }
   if (dom === 'cover') {
-    el.classList.add('wide');
-    // Name neben das Symbol holen, damit die Kachel niedrig bleibt
-    const txtBox = el.querySelector('.nm').parentNode; el.querySelector('.row').appendChild(txtBox);
-    extra.classList.add('ctrls');
     extra.innerHTML = '<div class="btns"><button class="btn" data-s="open_cover">▲</button><button class="btn" data-s="stop_cover">■</button><button class="btn" data-s="close_cover">▼</button></div>';
     extra.querySelectorAll('button').forEach((b) => (b.onclick = () => call('cover', b.dataset.s, {}, eid)));
     // Kippstellung (Lamellen), nur wenn die Jalousie das unterstützt
@@ -723,8 +721,8 @@ function makeCard(eid) {
     if (typeof a0.current_tilt_position === 'number' || ((a0.supported_features || 0) & 128)) {
       tiltBox = document.createElement('div');
       tiltBox.className = 'tilt';
-      tiltBox.innerHTML = '<div class="tl">Kippstellung</div><div class="btns">' +
-        [0, 25, 50, 75, 100].map((p) => '<button class="btn" data-t="' + p + '">' + p + ' %</button>').join('') + '</div>';
+      tiltBox.innerHTML = '<div class="tl">Kippstellung in %</div><div class="btns">' +
+        [0, 25, 50, 75, 100].map((p) => '<button class="btn" data-t="' + p + '">' + p + '</button>').join('') + '</div>';
       tiltBox.querySelectorAll('button').forEach((b) => (b.onclick = () => call('cover', 'set_cover_tilt_position', { tilt_position: Number(b.dataset.t) }, eid)));
       extra.appendChild(tiltBox);
     }
@@ -831,7 +829,13 @@ function renderGrid() {
   if (current === 'zeit') { g.hidden = true; z.hidden = false; renderZeitList(); renderZeitForm(); updateSummary(); return; }
   g.hidden = false; z.hidden = true;
   let e = entitiesOf(current);
-  const add = (eid) => { const c = makeCard(eid); cards[eid] = c; c.update(S[eid]); g.appendChild(c.el); };
+  let lastTyp = null;
+  const add = (eid) => {
+    const c = makeCard(eid); cards[eid] = c; c.update(S[eid]);
+    const t = typOf(eid);
+    if (lastTyp !== null && t !== lastTyp) c.el.style.gridColumnStart = '1';
+    lastTyp = t; g.appendChild(c.el);
+  };
   const grp = current.startsWith('g:') ? groups().find((x) => x.id === current) : null;
   const room = grp && currentRoom !== 'alle' ? grp.rooms.find((r) => r.id === currentRoom) : null;
   renderFilter(room ? room.entities : e);
@@ -840,7 +844,7 @@ function renderGrid() {
     e = [];
     grp.rooms.forEach((r) => {
       const re = r.entities.filter(passt); if (!re.length) return;
-      const h = document.createElement('div'); h.className = 'zh'; h.style.gridColumn = '1/-1'; h.textContent = r.name; g.appendChild(h);
+      const h = document.createElement('div'); h.className = 'zh'; h.style.gridColumn = '1/-1'; h.textContent = r.name; g.appendChild(h); lastTyp = null;
       re.forEach(add); e = e.concat(re);
     });
   } else { e = e.filter(passt); e.forEach(add); }
