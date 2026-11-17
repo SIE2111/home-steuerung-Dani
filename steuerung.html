@@ -59,6 +59,10 @@
   .srow + .srow{border-top:1px solid var(--line)}
   .sbtns{display:flex;gap:8px;flex:none}
   #covRows .cblk{border-top:1px solid var(--line);padding-bottom:6px}
+  .csel{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:2px 0 8px}
+  .csel::-webkit-scrollbar{display:none}
+  .csel button{flex:none;background:transparent;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+  .csel button.act{background:var(--card2);color:var(--accent);border-color:var(--accent)}
   .cchips{display:flex;align-items:center;gap:6px;margin:4px 0}
   .cchips .cl{width:78px;flex:none;font-size:12px;color:var(--muted)}
   .cchips button{flex:1;min-width:0;background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:7px 0;font-size:12px;font-weight:600;white-space:nowrap;cursor:pointer}
@@ -249,7 +253,7 @@ const AREA_GRUPPE = { 'Terrasse': 'Terrasse' };
 const GRUPPEN_REIHENFOLGE = ['Obergeschoss', 'Untergeschoss'];
 /* ===================================================================== */
 
-const VERSION = 'v4.27 · 17.11. 21:25';
+const VERSION = 'v4.28 · 17.11. 21:30';
 const KEY = 'steuerung_tokens_v1';
 const TABKEY = 'steuerung_tab_v1';
 const ORIGIN = location.origin;
@@ -871,44 +875,56 @@ function updateSummary() {
   const etage = scope === 'gesamt' ? '' : scope.slice(2) + ': ';
   $('#sumBig').textContent = etage + (on === 0 ? 'Alle Lichter aus' : on + (on === 1 ? ' Licht an' : ' Lichter an'));
   $('#sumSmall').textContent = all.filter(isLight).length + ' Lichter insgesamt';
-  // Jalousien: je Etage eine Zeile (auf einem Etagen-Reiter nur diese)
-  const gs = groups().filter((g) => scope === 'gesamt' || g.id === scope)
-    .map((g) => ({ id: g.id, name: g.name, cov: [].concat(...g.rooms.map((r) => r.entities)).filter((e) => e.startsWith('cover.')) }))
-    .filter((g) => g.cov.length);
+  // Jalousien: ein Block mit Auswahl Alle / Etagen / Ost / West
+  const gs = covGruppen();
   const box = $('#covRows');
-  const sig = gs.map((g) => g.id + ':' + g.cov.length).join('|');
+  if (!gs.length) { box.innerHTML = ''; covSig = ''; return; }
+  if (!gs.some((g) => g.id === covSel)) covSel = gs[0].id;
+  const sel = gs.find((g) => g.id === covSel);
+  const sig = gs.map((g) => g.id + ':' + g.cov.length).join('|') + '#' + covSel + '#' + sel.cov.some(kippbar);
   if (sig !== covSig) {
     covSig = sig;
     const chips = (art, label) => '<div class="cchips" data-art="' + art + '"><span class="cl">' + label + '</span>' +
       [0, 25, 50, 75, 100].map((p) => '<button data-p="' + p + '">' + p + ' %</button>').join('') + '</div>';
-    box.innerHTML = gs.map((g) => '<div class="cblk" data-g="' + esc(g.id) + '"><div class="srow"><div><div class="big"></div><div class="small"></div></div>' +
+    box.innerHTML = '<div class="cblk"><div class="srow"><div><div class="big">Jalousien</div><div class="small"></div></div>' +
       '<div class="sbtns"><button class="pill" data-s="open_cover">▲ Rauf</button><button class="pill" data-s="close_cover">▼ Runter</button></div></div>' +
-      chips('pos', 'Position') + (g.cov.some(kippbar) ? chips('tilt', 'Kippstellung') : '') + '</div>').join('');
-    box.querySelectorAll('.cblk').forEach((row) => row.querySelectorAll('button').forEach((b) => (b.onclick = () => {
-      const g = groups().find((x) => x.id === row.dataset.g); if (!g) return;
-      const c = [].concat(...g.rooms.map((r) => r.entities)).filter((e) => e.startsWith('cover.'));
-      if (!c.length) return;
+      '<div class="csel">' + gs.map((g) => '<button data-g="' + esc(g.id) + '"' + (g.id === covSel ? ' class="act"' : '') + '>' + esc(g.name) + '</button>').join('') + '</div>' +
+      chips('pos', 'Position') + (sel.cov.some(kippbar) ? chips('tilt', 'Kippstellung') : '') + '</div>';
+    box.querySelectorAll('.csel button').forEach((b) => (b.onclick = () => {
+      covSel = b.dataset.g; try { localStorage.setItem(TABKEY + 'c', covSel); } catch (e) {} updateSummary();
+    }));
+    box.querySelectorAll('.srow button, .cchips button').forEach((b) => (b.onclick = () => {
+      const g = covGruppen().find((x) => x.id === covSel); if (!g || !g.cov.length) return;
+      const c = g.cov;
       if (b.dataset.s) { call('cover', b.dataset.s, {}, c); return; }
       const p = Number(b.dataset.p);
       if (b.parentNode.dataset.art === 'tilt') { const k = c.filter(kippbar); if (k.length) call('cover', 'set_cover_tilt_position', { tilt_position: p }, k); }
       else call('cover', 'set_cover_position', { position: p }, c);
-    })));
+    }));
   }
-  gs.forEach((g) => {
-    const row = box.querySelector('.cblk[data-g="' + g.id.replace(/"/g, '') + '"]'); if (!row) return;
-    // gemeinsamen Wert markieren, wenn alle Jalousien gleich stehen
-    const mark = (art, key, list) => {
-      const r = row.querySelector('.cchips[data-art="' + art + '"]'); if (!r) return;
-      const v = list.map((e) => ((S[e] || {}).attributes || {})[key]);
-      const same = v.length && v.every((x) => typeof x === 'number' && Math.abs(x - v[0]) <= 12);
-      r.querySelectorAll('button').forEach((b) => b.classList.toggle('sel', !!same && Math.abs(Number(b.dataset.p) - v[0]) <= 12));
-    };
-    mark('pos', 'current_position', g.cov);
-    mark('tilt', 'current_tilt_position', g.cov.filter(kippbar));
-    const offen = g.cov.filter(covOffen).length;
-    row.querySelector('.big').textContent = 'Jalousien ' + g.name;
-    row.querySelector('.small').textContent = offen === 0 ? 'alle unten · ' + g.cov.length + ' gesamt' : offen + ' von ' + g.cov.length + ' offen';
-  });
+  // gemeinsamen Wert markieren, wenn alle gewählten Jalousien gleich stehen
+  const mark = (art, key, list) => {
+    const r = box.querySelector('.cchips[data-art="' + art + '"]'); if (!r) return;
+    const v = list.map((e) => ((S[e] || {}).attributes || {})[key]);
+    const same = v.length && v.every((x) => typeof x === 'number' && Math.abs(x - v[0]) <= 12);
+    r.querySelectorAll('button').forEach((b) => b.classList.toggle('sel', !!same && Math.abs(Number(b.dataset.p) - v[0]) <= 12));
+  };
+  mark('pos', 'current_position', sel.cov);
+  mark('tilt', 'current_tilt_position', sel.cov.filter(kippbar));
+  const offen = sel.cov.filter(covOffen).length;
+  box.querySelector('.small').textContent = sel.name + ': ' + (offen === 0 ? 'alle unten · ' + sel.cov.length + ' gesamt' : offen + ' von ' + sel.cov.length + ' offen');
+}
+let covSel = 'c:alle';
+try { covSel = localStorage.getItem(TABKEY + 'c') || 'c:alle'; } catch (e) {}
+function covGruppen() {
+  const fl = groups().map((g) => ({ id: g.id, name: g.name, cov: [].concat(...g.rooms.map((r) => r.entities)).filter((e) => e.startsWith('cover.')) })).filter((g) => g.cov.length);
+  const all = [].concat(...fl.map((g) => g.cov));
+  if (!all.length) return [];
+  const out = [{ id: 'c:alle', name: 'Alle', cov: all }].concat(fl.length > 1 ? fl : []);
+  const ost = all.filter((e) => /\bost\b/i.test(nameOf(e))), west = all.filter((e) => /\bwest\b/i.test(nameOf(e)));
+  if (ost.length) out.push({ id: 'c:ost', name: 'Ost', cov: ost });
+  if (west.length) out.push({ id: 'c:west', name: 'West', cov: west });
+  return out;
 }
 
 /* ---------- Energie (Strommessungen) ---------- */
