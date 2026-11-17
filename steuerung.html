@@ -53,8 +53,11 @@
   .nt{flex:1;min-width:0} .nt small{display:block;color:var(--muted);font-size:12px;margin-top:1px}
   .nx{background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:6px 10px;font-size:12px;cursor:pointer}
 
-  .summary{display:flex;align-items:center;justify-content:space-between;background:var(--card);
-    border:1px solid var(--line);border-radius:20px;padding:14px 16px;margin-bottom:16px}
+  .summary{display:flex;flex-direction:column;background:var(--card);
+    border:1px solid var(--line);border-radius:20px;padding:4px 16px;margin-bottom:16px}
+  .srow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0}
+  .srow + .srow{border-top:1px solid var(--line)}
+  .sbtns{display:flex;gap:8px;flex:none}
   .summary .big{font-size:18px;font-weight:650}
   .summary .small{font-size:13px;color:var(--muted);margin-top:2px}
   .pill{background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:14px;
@@ -166,8 +169,14 @@
     <aside class="side"><div class="weather" id="weather" hidden></div>
     <div class="notes" id="notes" hidden></div>
     <div class="summary">
-      <div><div class="big" id="sumBig"></div><div class="small" id="sumSmall"></div></div>
-      <button class="pill" id="allOff">Alles aus</button>
+      <div class="srow">
+        <div><div class="big" id="sumBig"></div><div class="small" id="sumSmall"></div></div>
+        <button class="pill" id="allOff">Alles aus</button>
+      </div>
+      <div class="srow" id="covRow" hidden>
+        <div><div class="big" id="covBig"></div><div class="small" id="covSmall"></div></div>
+        <div class="sbtns"><button class="pill" id="allUp">▲ Rauf</button><button class="pill" id="allDown">▼ Runter</button></div>
+      </div>
     </div></aside>
     <div class="mainc">
     <nav class="tabs" id="tabs"></nav>
@@ -223,7 +232,7 @@ const AREA_GRUPPE = { 'Terrasse': 'Terrasse' };
 const GRUPPEN_REIHENFOLGE = ['Obergeschoss', 'Untergeschoss'];
 /* ===================================================================== */
 
-const VERSION = 'v4.20 · 15.11. 10:30';
+const VERSION = 'v4.21 · 17.11. 21:15';
 const KEY = 'steuerung_tokens_v1';
 const TABKEY = 'steuerung_tab_v1';
 const ORIGIN = location.origin;
@@ -725,6 +734,18 @@ function updateSummary() {
   const on = lightsOn(all).length;
   $('#sumBig').textContent = on === 0 ? 'Alle Lichter aus' : on + (on === 1 ? ' Licht an' : ' Lichter an');
   $('#sumSmall').textContent = all.filter(isLight).length + ' Lichter insgesamt';
+  // Zweite Zeile: Jalousien
+  const cov = all.filter((e) => e.startsWith('cover.'));
+  $('#covRow').hidden = !cov.length;
+  if (cov.length) {
+    const offen = cov.filter((e) => {
+      const st = S[e]; if (!st) return false;
+      const p = (st.attributes || {}).current_position;
+      return typeof p === 'number' ? p > 0 : ['open', 'opening'].includes(st.state);
+    }).length;
+    $('#covBig').textContent = offen === 0 ? 'Alle Jalousien unten' : offen + (offen === 1 ? ' Jalousie offen' : ' Jalousien offen');
+    $('#covSmall').textContent = cov.length + (cov.length === 1 ? ' Jalousie' : ' Jalousien') + ' insgesamt';
+  }
 }
 
 /* ---------- Energie (Strommessungen) ---------- */
@@ -942,6 +963,12 @@ $('#allOff').onclick = () => {
   const l = lightsOn(entitiesOf(current === 'alle' || current === 'szenen' || current === 'zeit' || current === 'energie' ? 'gesamt' : current));
   if (l.length) call('homeassistant', 'turn_off', {}, l);
 };
+function alleJalousien(service) {
+  const c = entitiesOf('gesamt').filter((e) => e.startsWith('cover.'));
+  if (c.length) call('cover', service, {}, c);
+}
+$('#allUp').onclick = () => alleJalousien('open_cover');
+$('#allDown').onclick = () => alleJalousien('close_cover');
 $('#upd').onclick = () => {
   call('script', 'turn_on', {}, UPDATE_SKRIPT);
   toast('Aktualisierung läuft – Seite lädt gleich neu …', true);
