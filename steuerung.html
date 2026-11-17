@@ -58,6 +58,7 @@
   .srow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0}
   .srow + .srow{border-top:1px solid var(--line)}
   .sbtns{display:flex;gap:8px;flex:none}
+  #covRows .srow{border-top:1px solid var(--line)}
   .summary .big{font-size:18px;font-weight:650}
   .summary .small{font-size:13px;color:var(--muted);margin-top:2px}
   .pill{background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:14px;
@@ -173,10 +174,7 @@
         <div><div class="big" id="sumBig"></div><div class="small" id="sumSmall"></div></div>
         <button class="pill" id="allOff">Alles aus</button>
       </div>
-      <div class="srow" id="covRow" hidden>
-        <div><div class="big" id="covBig"></div><div class="small" id="covSmall"></div></div>
-        <div class="sbtns"><button class="pill" id="allUp">▲ Rauf</button><button class="pill" id="allDown">▼ Runter</button></div>
-      </div>
+      <div id="covRows" style="display:contents"></div>
     </div></aside>
     <div class="mainc">
     <nav class="tabs" id="tabs"></nav>
@@ -232,7 +230,7 @@ const AREA_GRUPPE = { 'Terrasse': 'Terrasse' };
 const GRUPPEN_REIHENFOLGE = ['Obergeschoss', 'Untergeschoss'];
 /* ===================================================================== */
 
-const VERSION = 'v4.21 · 17.11. 21:15';
+const VERSION = 'v4.22 · 17.11. 21:30';
 const KEY = 'steuerung_tokens_v1';
 const TABKEY = 'steuerung_tab_v1';
 const ORIGIN = location.origin;
@@ -729,23 +727,43 @@ function renderGrid() {
 const LICHT_NAME = /licht|lampe|leuchte|strahler|spot/i;
 function isLight(e) { return e.startsWith('light.') || (e.startsWith('switch.') && LICHT_NAME.test(nameOf(e))); }
 function lightsOn(list) { return list.filter((e) => isLight(e) && S[e] && S[e].state === 'on'); }
+// Bereich der Übersicht: auf einem Etagen-Reiter nur diese Etage, sonst alles
+function summaryScope() { return current.startsWith('g:') ? current : 'gesamt'; }
+function covOffen(e) {
+  const st = S[e]; if (!st) return false;
+  const p = (st.attributes || {}).current_position;
+  return typeof p === 'number' ? p > 0 : ['open', 'opening'].includes(st.state);
+}
+let covSig = '';
 function updateSummary() {
-  const all = entitiesOf('gesamt');
+  const scope = summaryScope();
+  const all = entitiesOf(scope);
   const on = lightsOn(all).length;
-  $('#sumBig').textContent = on === 0 ? 'Alle Lichter aus' : on + (on === 1 ? ' Licht an' : ' Lichter an');
+  const etage = scope === 'gesamt' ? '' : scope.slice(2) + ': ';
+  $('#sumBig').textContent = etage + (on === 0 ? 'Alle Lichter aus' : on + (on === 1 ? ' Licht an' : ' Lichter an'));
   $('#sumSmall').textContent = all.filter(isLight).length + ' Lichter insgesamt';
-  // Zweite Zeile: Jalousien
-  const cov = all.filter((e) => e.startsWith('cover.'));
-  $('#covRow').hidden = !cov.length;
-  if (cov.length) {
-    const offen = cov.filter((e) => {
-      const st = S[e]; if (!st) return false;
-      const p = (st.attributes || {}).current_position;
-      return typeof p === 'number' ? p > 0 : ['open', 'opening'].includes(st.state);
-    }).length;
-    $('#covBig').textContent = offen === 0 ? 'Alle Jalousien unten' : offen + (offen === 1 ? ' Jalousie offen' : ' Jalousien offen');
-    $('#covSmall').textContent = cov.length + (cov.length === 1 ? ' Jalousie' : ' Jalousien') + ' insgesamt';
+  // Jalousien: je Etage eine Zeile (auf einem Etagen-Reiter nur diese)
+  const gs = groups().filter((g) => scope === 'gesamt' || g.id === scope)
+    .map((g) => ({ id: g.id, name: g.name, cov: [].concat(...g.rooms.map((r) => r.entities)).filter((e) => e.startsWith('cover.')) }))
+    .filter((g) => g.cov.length);
+  const box = $('#covRows');
+  const sig = gs.map((g) => g.id + ':' + g.cov.length).join('|');
+  if (sig !== covSig) {
+    covSig = sig;
+    box.innerHTML = gs.map((g) => '<div class="srow" data-g="' + esc(g.id) + '"><div><div class="big"></div><div class="small"></div></div>' +
+      '<div class="sbtns"><button class="pill" data-s="open_cover">▲ Rauf</button><button class="pill" data-s="close_cover">▼ Runter</button></div></div>').join('');
+    box.querySelectorAll('.srow').forEach((row) => row.querySelectorAll('button').forEach((b) => (b.onclick = () => {
+      const g = groups().find((x) => x.id === row.dataset.g); if (!g) return;
+      const c = [].concat(...g.rooms.map((r) => r.entities)).filter((e) => e.startsWith('cover.'));
+      if (c.length) call('cover', b.dataset.s, {}, c);
+    })));
   }
+  gs.forEach((g) => {
+    const row = box.querySelector('.srow[data-g="' + g.id.replace(/"/g, '') + '"]'); if (!row) return;
+    const offen = g.cov.filter(covOffen).length;
+    row.querySelector('.big').textContent = 'Jalousien ' + g.name;
+    row.querySelector('.small').textContent = offen === 0 ? 'alle unten · ' + g.cov.length + ' gesamt' : offen + ' von ' + g.cov.length + ' offen';
+  });
 }
 
 /* ---------- Energie (Strommessungen) ---------- */
@@ -963,12 +981,6 @@ $('#allOff').onclick = () => {
   const l = lightsOn(entitiesOf(current === 'alle' || current === 'szenen' || current === 'zeit' || current === 'energie' ? 'gesamt' : current));
   if (l.length) call('homeassistant', 'turn_off', {}, l);
 };
-function alleJalousien(service) {
-  const c = entitiesOf('gesamt').filter((e) => e.startsWith('cover.'));
-  if (c.length) call('cover', service, {}, c);
-}
-$('#allUp').onclick = () => alleJalousien('open_cover');
-$('#allDown').onclick = () => alleJalousien('close_cover');
 $('#upd').onclick = () => {
   call('script', 'turn_on', {}, UPDATE_SKRIPT);
   toast('Aktualisierung läuft – Seite lädt gleich neu …', true);
