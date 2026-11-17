@@ -103,10 +103,18 @@
   .btns{display:flex;gap:8px}
   .btn{flex:1;background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:12px;padding:11px 0;font-size:16px;cursor:pointer}
   .btn:active{background:var(--accent);color:#14161B}
+  .tile.wide{grid-column:1/-1;min-height:0}
+  .tile.wide .spacer{display:none}
+  .tile.wide .ctl{display:none}
+  .tile.wide .row{gap:12px;justify-content:flex-start}
+  .ctrls{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:flex-end}
+  .ctrls>.btns{flex:1 1 200px}
+  .ctrls>.tilt{flex:2 1 280px;margin-top:0}
+  .tabs.flt{padding-top:0}
   .tilt{margin-top:10px}
   .tilt .tl{font-size:12px;color:var(--muted);margin-bottom:6px}
   .tilt .btns{gap:6px}
-  .tilt .btn{padding:8px 0;font-size:13px;font-weight:600}
+  .tilt .btn{padding:8px 0;font-size:13px;font-weight:600;white-space:nowrap;min-width:0}
   .tilt .btn.sel{background:var(--accent);color:#14161B;border-color:var(--accent)}
   .go{background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:12px;padding:10px 14px;font-size:14px;font-weight:600;cursor:pointer}
   .go:active{background:var(--accent);color:#14161B}
@@ -184,6 +192,7 @@
     <div class="mainc">
     <nav class="tabs" id="tabs"></nav>
     <nav class="tabs sub" id="tabs2" hidden></nav>
+    <nav class="tabs sub flt" id="ftabs" hidden></nav>
     <main class="grid" id="grid"></main>
     <section id="zeit" hidden>
       <div class="zh">Zeitschaltuhren &amp; Automatisierungen</div>
@@ -235,7 +244,7 @@ const AREA_GRUPPE = { 'Terrasse': 'Terrasse' };
 const GRUPPEN_REIHENFOLGE = ['Obergeschoss', 'Untergeschoss'];
 /* ===================================================================== */
 
-const VERSION = 'v4.24 · 17.11. 21:20';
+const VERSION = 'v4.25 · 17.11. 21:30';
 const KEY = 'steuerung_tokens_v1';
 const TABKEY = 'steuerung_tab_v1';
 const ORIGIN = location.origin;
@@ -698,6 +707,10 @@ function makeCard(eid) {
     ctl.appendChild(b); ico.onclick = () => call(dom, 'turn_on', {}, eid);
   }
   if (dom === 'cover') {
+    el.classList.add('wide');
+    // Name neben das Symbol holen, damit die Kachel niedrig bleibt
+    const txtBox = el.querySelector('.nm').parentNode; el.querySelector('.row').appendChild(txtBox);
+    extra.classList.add('ctrls');
     extra.innerHTML = '<div class="btns"><button class="btn" data-s="open_cover">▲</button><button class="btn" data-s="stop_cover">■</button><button class="btn" data-s="close_cover">▼</button></div>';
     extra.querySelectorAll('button').forEach((b) => (b.onclick = () => call('cover', b.dataset.s, {}, eid)));
     // Kippstellung (Lamellen), nur wenn die Jalousie das unterstützt
@@ -778,10 +791,37 @@ function renderTabs() {
     t2.hidden = false;
   } else t2.hidden = true;
 }
+// Filter nach Gerätetyp (Lichter, Schalter, Jalousien, Szenen)
+const FILTER = [['alle', 'Alle'], ['licht', 'Lichter'], ['schalter', 'Schalter'], ['jalousie', 'Jalousien'], ['szene', 'Szenen']];
+let currentFilter = 'alle';
+try { currentFilter = localStorage.getItem(TABKEY + 'f') || 'alle'; } catch (e) {}
+function typOf(e) {
+  const d = e.split('.')[0];
+  if (isLight(e)) return 'licht';
+  if (d === 'cover') return 'jalousie';
+  if (d === 'scene' || d === 'script') return 'szene';
+  return 'schalter';
+}
+function passt(e) { return currentFilter === 'alle' || typOf(e) === currentFilter; }
+function renderFilter(list) {
+  const f = $('#ftabs'); f.innerHTML = '';
+  const da = new Set(list.map(typOf));
+  if (da.size < 2) { f.hidden = true; return; }
+  if (currentFilter !== 'alle' && !da.has(currentFilter)) currentFilter = 'alle';
+  FILTER.filter(([id]) => id === 'alle' || da.has(id)).forEach(([id, name]) => {
+    const b = document.createElement('button');
+    b.className = 'tab sm' + (currentFilter === id ? ' act' : '');
+    b.textContent = name;
+    b.onclick = () => { currentFilter = id; try { localStorage.setItem(TABKEY + 'f', id); } catch (e) {} renderGrid(); };
+    f.appendChild(b);
+  });
+  f.hidden = false;
+}
 function renderGrid() {
   const g = $('#grid'), z = $('#zeit'), en = $('#energie');
   g.innerHTML = ''; cards = {};
   en.hidden = current !== 'energie';
+  if (current === 'energie' || current === 'zeit') $('#ftabs').hidden = true;
   if (current === 'energie') { g.hidden = true; z.hidden = true; renderEnergie(); updateSummary(); return; }
   if (current === 'zeit') { g.hidden = true; z.hidden = false; renderZeitList(); renderZeitForm(); updateSummary(); return; }
   g.hidden = false; z.hidden = true;
@@ -789,13 +829,16 @@ function renderGrid() {
   const add = (eid) => { const c = makeCard(eid); cards[eid] = c; c.update(S[eid]); g.appendChild(c.el); };
   const grp = current.startsWith('g:') ? groups().find((x) => x.id === current) : null;
   const room = grp && currentRoom !== 'alle' ? grp.rooms.find((r) => r.id === currentRoom) : null;
-  if (room) { e = room.entities; e.forEach(add); }
+  renderFilter(room ? room.entities : e);
+  if (room) { e = room.entities.filter(passt); e.forEach(add); }
   else if (grp && grp.rooms.length > 1) {
+    e = [];
     grp.rooms.forEach((r) => {
+      const re = r.entities.filter(passt); if (!re.length) return;
       const h = document.createElement('div'); h.className = 'zh'; h.style.gridColumn = '1/-1'; h.textContent = r.name; g.appendChild(h);
-      r.entities.forEach(add);
+      re.forEach(add); e = e.concat(re);
     });
-  } else e.forEach(add);
+  } else { e = e.filter(passt); e.forEach(add); }
   if (!e.length) g.innerHTML = '<div style="grid-column:1/-1;color:var(--muted);text-align:center;padding:40px 0">Keine Einträge.</div>';
   updateSummary();
 }
