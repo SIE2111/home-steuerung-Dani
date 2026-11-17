@@ -253,7 +253,7 @@ const AREA_GRUPPE = { 'Terrasse': 'Terrasse' };
 const GRUPPEN_REIHENFOLGE = ['Obergeschoss', 'Untergeschoss'];
 /* ===================================================================== */
 
-const VERSION = 'v4.28 · 17.11. 21:30';
+const VERSION = 'v4.29 · 17.11. 21:30';
 const KEY = 'steuerung_tokens_v1';
 const TABKEY = 'steuerung_tab_v1';
 const ORIGIN = location.origin;
@@ -875,27 +875,31 @@ function updateSummary() {
   const etage = scope === 'gesamt' ? '' : scope.slice(2) + ': ';
   $('#sumBig').textContent = etage + (on === 0 ? 'Alle Lichter aus' : on + (on === 1 ? ' Licht an' : ' Lichter an'));
   $('#sumSmall').textContent = all.filter(isLight).length + ' Lichter insgesamt';
-  // Jalousien: ein Block mit Auswahl Alle / Etagen / Ost / West
-  const gs = covGruppen();
+  // Jalousien: ein Block, Auswahl Etage × Seite (kombinierbar)
   const box = $('#covRows');
-  if (!gs.length) { box.innerHTML = ''; covSig = ''; return; }
-  if (!gs.some((g) => g.id === covSel)) covSel = gs[0].id;
-  const sel = gs.find((g) => g.id === covSel);
-  const sig = gs.map((g) => g.id + ':' + g.cov.length).join('|') + '#' + covSel + '#' + sel.cov.some(kippbar);
+  const allCov = covAlle();
+  if (!allCov.length) { box.innerHTML = ''; covSig = ''; return; }
+  const et = covEtagen(), sd = covSeiten();
+  if (!et.some((x) => x.id === covEt)) covEt = 'alle';
+  if (!sd.some((x) => x.id === covSd)) covSd = 'alle';
+  const sel = covAuswahl();
+  const sig = et.map((x) => x.id).join('|') + '#' + sd.map((x) => x.id).join('|') + '#' + covEt + '#' + covSd + '#' + sel.some(kippbar);
   if (sig !== covSig) {
     covSig = sig;
     const chips = (art, label) => '<div class="cchips" data-art="' + art + '"><span class="cl">' + label + '</span>' +
       [0, 25, 50, 75, 100].map((p) => '<button data-p="' + p + '">' + p + ' %</button>').join('') + '</div>';
+    const selRow = (kind, list, cur) => '<div class="csel" data-k="' + kind + '">' + list.map((x) => '<button data-v="' + esc(x.id) + '"' + (x.id === cur ? ' class="act"' : '') + '>' + esc(x.name) + '</button>').join('') + '</div>';
     box.innerHTML = '<div class="cblk"><div class="srow"><div><div class="big">Jalousien</div><div class="small"></div></div>' +
       '<div class="sbtns"><button class="pill" data-s="open_cover">▲ Rauf</button><button class="pill" data-s="close_cover">▼ Runter</button></div></div>' +
-      '<div class="csel">' + gs.map((g) => '<button data-g="' + esc(g.id) + '"' + (g.id === covSel ? ' class="act"' : '') + '>' + esc(g.name) + '</button>').join('') + '</div>' +
-      chips('pos', 'Position') + (sel.cov.some(kippbar) ? chips('tilt', 'Kippstellung') : '') + '</div>';
+      selRow('et', et, covEt) + (sd.length > 1 ? selRow('sd', sd, covSd) : '') +
+      chips('pos', 'Position') + (sel.some(kippbar) ? chips('tilt', 'Kippstellung') : '') + '</div>';
     box.querySelectorAll('.csel button').forEach((b) => (b.onclick = () => {
-      covSel = b.dataset.g; try { localStorage.setItem(TABKEY + 'c', covSel); } catch (e) {} updateSummary();
+      if (b.parentNode.dataset.k === 'et') covEt = b.dataset.v; else covSd = b.dataset.v;
+      try { localStorage.setItem(TABKEY + 'ce', covEt); localStorage.setItem(TABKEY + 'cs', covSd); } catch (e) {}
+      updateSummary();
     }));
     box.querySelectorAll('.srow button, .cchips button').forEach((b) => (b.onclick = () => {
-      const g = covGruppen().find((x) => x.id === covSel); if (!g || !g.cov.length) return;
-      const c = g.cov;
+      const c = covAuswahl(); if (!c.length) { toast('Keine Jalousien in dieser Auswahl'); return; }
       if (b.dataset.s) { call('cover', b.dataset.s, {}, c); return; }
       const p = Number(b.dataset.p);
       if (b.parentNode.dataset.art === 'tilt') { const k = c.filter(kippbar); if (k.length) call('cover', 'set_cover_tilt_position', { tilt_position: p }, k); }
@@ -909,22 +913,30 @@ function updateSummary() {
     const same = v.length && v.every((x) => typeof x === 'number' && Math.abs(x - v[0]) <= 12);
     r.querySelectorAll('button').forEach((b) => b.classList.toggle('sel', !!same && Math.abs(Number(b.dataset.p) - v[0]) <= 12));
   };
-  mark('pos', 'current_position', sel.cov);
-  mark('tilt', 'current_tilt_position', sel.cov.filter(kippbar));
-  const offen = sel.cov.filter(covOffen).length;
-  box.querySelector('.small').textContent = sel.name + ': ' + (offen === 0 ? 'alle unten · ' + sel.cov.length + ' gesamt' : offen + ' von ' + sel.cov.length + ' offen');
+  mark('pos', 'current_position', sel);
+  mark('tilt', 'current_tilt_position', sel.filter(kippbar));
+  const name = [et.find((x) => x.id === covEt), sd.find((x) => x.id === covSd)].filter((x) => x && x.id !== 'alle').map((x) => x.name).join(' · ') || 'Alle';
+  const offen = sel.filter(covOffen).length;
+  box.querySelector('.small').textContent = name + ': ' + (!sel.length ? 'keine Jalousien' : offen === 0 ? 'alle unten · ' + sel.length + ' gesamt' : offen + ' von ' + sel.length + ' offen');
 }
-let covSel = 'c:alle';
-try { covSel = localStorage.getItem(TABKEY + 'c') || 'c:alle'; } catch (e) {}
-function covGruppen() {
-  const fl = groups().map((g) => ({ id: g.id, name: g.name, cov: [].concat(...g.rooms.map((r) => r.entities)).filter((e) => e.startsWith('cover.')) })).filter((g) => g.cov.length);
-  const all = [].concat(...fl.map((g) => g.cov));
-  if (!all.length) return [];
-  const out = [{ id: 'c:alle', name: 'Alle', cov: all }].concat(fl.length > 1 ? fl : []);
-  const ost = all.filter((e) => /\bost\b/i.test(nameOf(e))), west = all.filter((e) => /\bwest\b/i.test(nameOf(e)));
-  if (ost.length) out.push({ id: 'c:ost', name: 'Ost', cov: ost });
-  if (west.length) out.push({ id: 'c:west', name: 'West', cov: west });
+let covEt = 'alle', covSd = 'alle';
+try { covEt = localStorage.getItem(TABKEY + 'ce') || 'alle'; covSd = localStorage.getItem(TABKEY + 'cs') || 'alle'; } catch (e) {}
+const SEITE = { ost: /\bost\b/i, west: /\bwest\b/i };
+function covVon(g) { return [].concat(...g.rooms.map((r) => r.entities)).filter((e) => e.startsWith('cover.')); }
+function covAlle() { return [].concat(...groups().map(covVon)); }
+function covEtagen() {
+  return [{ id: 'alle', name: 'Alle Etagen' }].concat(groups().filter((g) => g.name !== SONSTIGES || covVon(g).length).map((g) => ({ id: g.id, name: g.name })));
+}
+function covSeiten() {
+  const all = covAlle(), out = [{ id: 'alle', name: 'Alle Seiten' }];
+  if (all.some((e) => SEITE.ost.test(nameOf(e)))) out.push({ id: 'ost', name: 'Ost' });
+  if (all.some((e) => SEITE.west.test(nameOf(e)))) out.push({ id: 'west', name: 'West' });
   return out;
+}
+function covAuswahl() {
+  let c = covEt === 'alle' ? covAlle() : (() => { const g = groups().find((x) => x.id === covEt); return g ? covVon(g) : []; })();
+  if (SEITE[covSd]) c = c.filter((e) => SEITE[covSd].test(nameOf(e)));
+  return c;
 }
 
 /* ---------- Energie (Strommessungen) ---------- */
