@@ -235,7 +235,7 @@ const AREA_GRUPPE = { 'Terrasse': 'Terrasse' };
 const GRUPPEN_REIHENFOLGE = ['Obergeschoss', 'Untergeschoss'];
 /* ===================================================================== */
 
-const VERSION = 'v4.23 · 17.11. 22:00';
+const VERSION = 'v4.24 · 17.11. 21:20';
 const KEY = 'steuerung_tokens_v1';
 const TABKEY = 'steuerung_tab_v1';
 const ORIGIN = location.origin;
@@ -244,9 +244,10 @@ const REDIRECT = ORIGIN + location.pathname;
 const $ = (s) => document.querySelector(s);
 const esc = (t) => String(t == null ? '' : t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-let pending = {}, toastTimer = null;
+let pending = {}, dashWait = {}, toastTimer = null;
 const ROOM = {}, DEVNAME = {};
 let isAdmin = false;
+let ORD = { floors: [], floorIds: [], areas: [], dashFloors: [], dashAreas: [], dashEnt: {} };
 let S = {}, AREAS = [], NOTES = [], WEATHER = null, HACFG = null, cards = {}, current = 'alle';
 let ENERGIE = [], energieTimer = null;
 let ws = null, wsId = 0, tokens = null, userName = '', retry = 0, haveStates = false, haveAreas = false;
@@ -316,7 +317,7 @@ function setStatus(ok, text) {
 }
 function pollNotes() { if (ws && ws.readyState === 1) idNotes = send({ type: 'persistent_notification/get' }); }
 
-const TEMPLATE = "{% set ns = namespace(r=[]) %}{% for s in states if s.domain in ['light','switch','cover','input_boolean','scene','script'] %}{% set a = area_id(s.entity_id) %}{% if a %}{% set f = floor_id(s.entity_id) %}{% set ns.r = ns.r + [[s.entity_id, a, area_name(a), (floor_name(f) if f else none), (device_attr(s.entity_id, 'name_by_user') or device_attr(s.entity_id, 'name'))]] %}{% endif %}{% endfor %}{{ ns.r | to_json }}";
+const TEMPLATE = "{% set ns = namespace(r=[]) %}{% for s in states if s.domain in ['light','switch','cover','input_boolean','scene','script'] %}{% set a = area_id(s.entity_id) %}{% if a %}{% set f = floor_id(s.entity_id) %}{% set ns.r = ns.r + [[s.entity_id, a, area_name(a), (floor_name(f) if f else none), (device_attr(s.entity_id, 'name_by_user') or device_attr(s.entity_id, 'name'))]] %}{% endif %}{% endfor %}{{ {'f': floors() | map('floor_name') | list, 'fi': floors() | list, 'a': areas() | list, 'r': ns.r} | to_json }}";
 // Strommessungen: alle Sensoren für Leistung, Energie, Spannung und Strom mit Gerätename und Raum
 const ENERGIE_TEMPLATE = "{% set ns = namespace(r=[]) %}{% for s in states.sensor if s.attributes.device_class in ['power','energy','voltage','current'] %}{% set ns.r = ns.r + [[s.entity_id, (device_attr(s.entity_id, 'name_by_user') or device_attr(s.entity_id, 'name') or ''), (area_name(s.entity_id) or '')]] %}{% endfor %}{{ ns.r | to_json }}";
 
@@ -340,8 +341,11 @@ async function connect() {
       idTpl = send({ type: 'render_template', template: TEMPLATE, timeout: 8 });
       idEnTpl = send({ type: 'render_template', template: ENERGIE_TEMPLATE, timeout: 8 });
       send({ type: 'subscribe_events', event_type: 'state_changed' });
+      loadDashOrder();
       pollNotes();
       clearInterval(notesTimer); notesTimer = setInterval(pollNotes, 60000);
+    } else if (m.type === 'result' && dashWait[m.id]) {
+      const res = dashWait[m.id]; delete dashWait[m.id]; res(m.success ? m.result : null);
     } else if (m.type === 'result' && pending[m.id]) {
       console.log('[steuerung] antwort', pending[m.id], JSON.stringify(m));
       if (!m.success) toast('Fehler bei ' + pending[m.id] + ': ' + ((m.error && m.error.message) || 'unbekannt'));
@@ -367,6 +371,10 @@ async function connect() {
     } else if (m.type === 'event' && m.id === idTpl) {
       let r = m.event.result;
       try { if (typeof r === 'string') r = JSON.parse(r); } catch (e) { r = []; }
+      if (r && !Array.isArray(r)) {
+        ORD.floors = r.f || []; ORD.floorIds = r.fi || []; ORD.areas = r.a || [];
+        r = r.r || [];
+      }
       const byArea = {};
       (Array.isArray(r) ? r : []).forEach((x) => {
         if (!Array.isArray(x)) return;
@@ -582,19 +590,65 @@ function visible(eid) {
   const dom = eid.split('.')[0];
   return S[eid] && GERAETE_DOMAINS.includes(dom) && !VERSTECKEN.includes(eid) && !AUSSCHLUSS.some((rx) => rx.test(eid)) && !inSchalter(eid);
 }
-function sortEnt(e) {
+function sortEnt(e, ids) {
   const o = { light: 0, switch: 1, cover: 2, input_boolean: 3, scene: 4, script: 5 };
-  return e.slice().sort((a, b) => (o[a.split('.')[0]] - o[b.split('.')[0]]) || nameOf(a).localeCompare(nameOf(b), 'de'));
+  // Reihenfolge aus dem HA-Dashboard (falls dort im Raum umsortiert), sonst nach Name
+  const dash = [].concat(...(ids || []).map((i) => ORD.dashEnt[i] || []));
+  const di = (x) => { const i = dash.indexOf(x); return i < 0 ? 9999 : i; };
+  return e.slice().sort((a, b) => (o[a.split('.')[0]] - o[b.split('.')[0]]) || di(a) - di(b) || nameOf(a).localeCompare(nameOf(b), 'de'));
+}
+// Reihenfolge der Bereiche/Etagen wie in Home Assistant angelegt (Dashboard-Sortierung hat Vorrang)
+function areaRank(a) {
+  const ids = a.ids || [a.id];
+  const best = (list) => Math.min(...ids.map((i) => { const k = list.indexOf(i); return k < 0 ? 9999 : k; }));
+  const d = best(ORD.dashAreas);
+  return d < 9999 ? d : 10000 + best(ORD.areas);
+}
+function floorRank(name) {
+  if (name === SONSTIGES) return 99999;
+  const i = ORD.floors.indexOf(name);
+  const fid = i >= 0 ? ORD.floorIds[i] : null;
+  const d = fid ? ORD.dashFloors.indexOf(fid) : -1;
+  if (d >= 0) return d;
+  if (i >= 0) return 1000 + i;
+  if (name === 'Terrasse') return 5000;
+  const g = GRUPPEN_REIHENFOLGE.indexOf(name);
+  return g >= 0 ? 2000 + g : 6000;
+}
+async function loadDashOrder() {
+  // Liest die Sortierung aus den HA-Dashboards (Bereiche-/Übersicht-Dashboard), falls dort umsortiert wurde
+  const ask = (msg) => new Promise((res) => { const id = send(msg); dashWait[id] = res; setTimeout(() => { if (dashWait[id]) { delete dashWait[id]; res(null); } }, 8000); });
+  const cfgs = [];
+  const def = await ask({ type: 'lovelace/config' }); if (def) cfgs.push(def);
+  const list = await ask({ type: 'lovelace/dashboards/list' });
+  for (const d of (Array.isArray(list) ? list : [])) { const c = await ask({ type: 'lovelace/config', url_path: d.url_path }); if (c) cfgs.push(c); }
+  let found = false;
+  cfgs.forEach((c) => {
+    const s = c && c.strategy; if (!s || found) return;
+    const ad = s.areas_display || (s.areas && s.areas.display) || null;
+    const fd = s.floors_display || null;
+    const ao = s.areas_options || null;
+    if (!ad && !fd && !ao) return;
+    found = true;
+    ORD.dashAreas = (ad && ad.order) || [];
+    ORD.dashFloors = (fd && fd.order) || [];
+    ORD.dashEnt = {};
+    Object.keys(ao || {}).forEach((aid) => {
+      const go = (ao[aid] && ao[aid].groups_options) || {};
+      ORD.dashEnt[aid] = [].concat(...Object.values(go).map((g) => (g && g.order) || []));
+    });
+  });
+  if (found && haveStates && haveAreas) maybeBuild();
 }
 function inSchalter(eid) {
   return AREAS.some((a) => (SCHALTER_BEREICH.test(a.name || '') || SCHALTER_BEREICH.test(a.floor || '')) && (a.entities || []).includes(eid));
 }
 function rooms() {
   const used = new Set(), list = [];
-  AREAS.slice().sort((a, b) => a.name.localeCompare(b.name, 'de')).forEach((a) => {
+  AREAS.slice().sort((a, b) => areaRank(a) - areaRank(b) || a.name.localeCompare(b.name, 'de')).forEach((a) => {
     const e = (a.entities || []).filter(visible);
     e.forEach((x) => used.add(x));
-    if (e.length) list.push({ id: a.id, name: a.name, group: AREA_GRUPPE[a.name] || a.floor || SONSTIGES, entities: sortEnt(e) });
+    if (e.length) list.push({ id: a.id, name: a.name, group: AREA_GRUPPE[a.name] || a.floor || SONSTIGES, entities: sortEnt(e, a.ids || [a.id]) });
   });
   const rest = Object.keys(S).filter((e) => visible(e) && !used.has(e));
   if (rest.length) list.push({ id: 'weitere', name: 'Weitere', group: SONSTIGES, entities: sortEnt(rest) });
@@ -603,16 +657,18 @@ function rooms() {
 function groups() {
   const m = {};
   rooms().forEach((r) => { (m[r.group] = m[r.group] || { id: 'g:' + r.group, name: r.group, rooms: [] }).rooms.push(r); });
-  const rank = (n) => { const i = GRUPPEN_REIHENFOLGE.indexOf(n); return n === SONSTIGES ? 99 : n === 'Terrasse' ? 50 : i >= 0 ? i : 10; };
-  return Object.values(m).sort((a, b) => rank(a.name) - rank(b.name) || a.name.localeCompare(b.name, 'de'));
+  return Object.values(m).sort((a, b) => floorRank(a.name) - floorRank(b.name) || a.name.localeCompare(b.name, 'de'));
 }
 function szenen() {
   return sortEnt(Object.keys(S).filter((e) => SZENEN_DOMAINS.includes(e.split('.')[0]) && e !== UPDATE_SKRIPT && !VERSTECKEN.includes(e)));
 }
 function entitiesOf(id) {
   const rs = rooms();
-  if (id === 'alle') return sortEnt([].concat(...rs.filter((r) => r.group !== SONSTIGES).map((r) => r.entities)));
-  if (id === 'gesamt') return sortEnt([].concat(...rs.map((r) => r.entities)));
+  const o = { light: 0, switch: 1, cover: 2, input_boolean: 3, scene: 4, script: 5 };
+  const inOrder = (list) => list.slice().sort((a, b) => o[a.split('.')[0]] - o[b.split('.')[0]]);
+  const flat = (gs) => [].concat(...gs.map((g) => [].concat(...g.rooms.map((r) => r.entities))));
+  if (id === 'alle') return inOrder(flat(groups().filter((g) => g.name !== SONSTIGES)));
+  if (id === 'gesamt') return inOrder(flat(groups()));
   if (id === 'szenen') return szenen();
   const g = groups().find((x) => x.id === id);
   return g ? [].concat(...g.rooms.map((r) => r.entities)) : [];
