@@ -103,6 +103,11 @@
   .btns{display:flex;gap:8px}
   .btn{flex:1;background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:12px;padding:11px 0;font-size:16px;cursor:pointer}
   .btn:active{background:var(--accent);color:#14161B}
+  .tilt{margin-top:10px}
+  .tilt .tl{font-size:12px;color:var(--muted);margin-bottom:6px}
+  .tilt .btns{gap:6px}
+  .tilt .btn{padding:8px 0;font-size:13px;font-weight:600}
+  .tilt .btn.sel{background:var(--accent);color:#14161B;border-color:var(--accent)}
   .go{background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:12px;padding:10px 14px;font-size:14px;font-weight:600;cursor:pointer}
   .go:active{background:var(--accent);color:#14161B}
 
@@ -230,7 +235,7 @@ const AREA_GRUPPE = { 'Terrasse': 'Terrasse' };
 const GRUPPEN_REIHENFOLGE = ['Obergeschoss', 'Untergeschoss'];
 /* ===================================================================== */
 
-const VERSION = 'v4.22 · 17.11. 21:30';
+const VERSION = 'v4.23 · 17.11. 22:00';
 const KEY = 'steuerung_tokens_v1';
 const TABKEY = 'steuerung_tab_v1';
 const ORIGIN = location.origin;
@@ -621,7 +626,7 @@ function makeCard(eid) {
   const ico = el.querySelector('.ico'), nm = el.querySelector('.nm'), sub = el.querySelector('.sub');
   const ctl = el.querySelector('.ctl'), extra = el.querySelector('.extra');
   ico.innerHTML = svg(isLight(eid) ? 'light' : dom);
-  let slider = null;
+  let slider = null, tiltBox = null;
 
   if (dom === 'light' || dom === 'switch' || dom === 'input_boolean') {
     const t = document.createElement('button');
@@ -639,6 +644,16 @@ function makeCard(eid) {
   if (dom === 'cover') {
     extra.innerHTML = '<div class="btns"><button class="btn" data-s="open_cover">▲</button><button class="btn" data-s="stop_cover">■</button><button class="btn" data-s="close_cover">▼</button></div>';
     extra.querySelectorAll('button').forEach((b) => (b.onclick = () => call('cover', b.dataset.s, {}, eid)));
+    // Kippstellung (Lamellen), nur wenn die Jalousie das unterstützt
+    const a0 = (S[eid] || {}).attributes || {};
+    if (typeof a0.current_tilt_position === 'number' || ((a0.supported_features || 0) & 128)) {
+      tiltBox = document.createElement('div');
+      tiltBox.className = 'tilt';
+      tiltBox.innerHTML = '<div class="tl">Kippstellung</div><div class="btns">' +
+        [0, 25, 50, 75, 100].map((p) => '<button class="btn" data-t="' + p + '">' + p + ' %</button>').join('') + '</div>';
+      tiltBox.querySelectorAll('button').forEach((b) => (b.onclick = () => call('cover', 'set_cover_tilt_position', { tilt_position: Number(b.dataset.t) }, eid)));
+      extra.appendChild(tiltBox);
+    }
   }
   if (dom === 'light') {
     slider = document.createElement('input');
@@ -658,6 +673,11 @@ function makeCard(eid) {
     let txt = DE[st.state] || st.state;
     if (dom === 'light' && st.state === 'on' && typeof a.brightness === 'number') txt = Math.round((a.brightness / 255) * 100) + ' %';
     if (dom === 'cover' && typeof a.current_position === 'number') txt += ' · ' + a.current_position + ' %';
+    if (tiltBox) {
+      const t = a.current_tilt_position;
+      if (typeof t === 'number') txt += ' · Kipp ' + t + ' %';
+      tiltBox.querySelectorAll('button').forEach((b) => b.classList.toggle('sel', typeof t === 'number' && Math.abs(Number(b.dataset.t) - t) <= 12));
+    }
     if (dom === 'scene') txt = 'Szene';
     if (dom === 'script') txt = 'Skript';
     sub.textContent = (ROOM[eid] && current !== 'zeit' && !(currentRoom !== 'alle' && current.startsWith('g:')) ? ROOM[eid] + ' · ' : '') + txt;
