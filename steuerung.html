@@ -251,7 +251,7 @@ const AREA_GRUPPE = { 'Terrasse': 'Terrasse' };
 const GRUPPEN_REIHENFOLGE = ['Obergeschoss', 'Untergeschoss'];
 /* ===================================================================== */
 
-const VERSION = 'v4.30 · 17.11. 21:35';
+const VERSION = 'v4.31 · 18.11. 12:30';
 const KEY = 'steuerung_tokens_v1';
 const TABKEY = 'steuerung_tab_v1';
 const ORIGIN = location.origin;
@@ -514,7 +514,8 @@ const STOER_AUSNAHME = /permit_join|bridge|backlight|vibration|momentary|countdo
 // Zweiteilig: Raumname aus dem Titel nehmen, er steht in der Unterzeile
 function tileName(eid) {
   const n = tileName0(eid), r = ROOM[eid];
-  if (!r || UMBENENNEN[eid]) return n;
+  // Raumname bleibt im Kachelnamen stehen (Wunsch: voller Name, auch wenn er der Überschrift entspricht)
+  if (true || !r || UMBENENNEN[eid]) return n;
   const rx = new RegExp('(^|\\s)' + r.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?=\\s|$)', 'i');
   const t = n.replace(rx, ' ').replace(/\s+/g, ' ').trim();
   return t || n;
