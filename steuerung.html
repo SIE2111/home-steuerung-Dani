@@ -8,6 +8,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0F1115">
 <title>Zuhause</title>
+<script>try{var t=localStorage.getItem('steuerung_theme');if(t==='light'||(t==='auto'&&matchMedia('(prefers-color-scheme: light)').matches))document.documentElement.dataset.theme='light';}catch(e){}</script>
 <style>
   :root{
     --bg:#0F1115; --card:#1A1D24; --card2:#242833; --line:#2C313D;
@@ -187,11 +188,27 @@
   #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   #toast.okk{background:#16301F;border-color:#2F7A45;color:#D2F5DD}
 
-  footer{margin-top:34px;display:flex;justify-content:space-between;align-items:center;gap:10px;color:var(--muted);font-size:13px}
-  footer .fb{display:flex;gap:8px}
+  footer{margin-top:34px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;color:var(--muted);font-size:13px}
+  footer .fb{display:flex;gap:8px;flex-wrap:wrap}
   footer button{background:none;border:1px solid var(--line);color:var(--muted);border-radius:12px;padding:8px 14px;font-size:13px;cursor:pointer}
   #msg{text-align:center;color:var(--muted);margin-top:70px;font-size:16px;line-height:1.5;padding:0 12px}
   #msg b{color:var(--text)}
+  /* Helles Design */
+  html[data-theme="light"]{--bg:#F2F3F6; --card:#FFFFFF; --card2:#ECEEF2; --line:#D9DCE3; --text:#1A1D24; --muted:#646B7A; --accent:#E9A21C; --accent2:#F07A2B}
+  html[data-theme="light"] body{background:radial-gradient(900px 420px at 80% -10%,#FCE9C6 0%,transparent 60%),var(--bg)}
+  html[data-theme="light"] .weather,html[data-theme="light"] .ebox{background:linear-gradient(135deg,#E3ECFA 0%,#FFFFFF 70%)}
+  html[data-theme="light"] .notes.bad{border-color:#F0B8BD;background:linear-gradient(135deg,#FDECEE,#FFFFFF)}
+  html[data-theme="light"] .notes.warn{border-color:#EED79E;background:linear-gradient(135deg,#FDF4E0,#FFFFFF)}
+  html[data-theme="light"] .tile,html[data-theme="light"] .summary,html[data-theme="light"] .notes,html[data-theme="light"] .ecard{box-shadow:0 2px 10px -6px rgba(20,25,40,.25)}
+  html[data-theme="light"] .tile.on{background:linear-gradient(150deg,#FFF1D2 0%,#FFF8EA 55%,#FFFFFF 100%);border-color:#EFC572;box-shadow:0 8px 24px -14px rgba(233,162,28,.6)}
+  html[data-theme="light"] .tile.on .sub{color:#9A6A0E}
+  html[data-theme="light"] .ecard.act{border-color:#EFC572;background:linear-gradient(150deg,#FFF1D2 0%,#FFFFFF 70%)}
+  html[data-theme="light"] .rbox{border-color:#C9CDD6;background:rgba(255,255,255,.6);box-shadow:0 4px 18px -12px rgba(20,25,40,.35)}
+  html[data-theme="light"] .rbox .zh{color:#B87A0A}
+  html[data-theme="light"] input[type=range]::-webkit-slider-runnable-track{background:rgba(0,0,0,.12)}
+  html[data-theme="light"] input[type=range]::-moz-range-track{background:rgba(0,0,0,.12)}
+  html[data-theme="light"] .ebar{background:rgba(0,0,0,.08)}
+  html[data-theme="light"] .tog::after{background:#9AA0AD}
 </style>
 </head>
 <body>
@@ -225,7 +242,7 @@
   <div id="toast"></div>
   <footer>
     <span><span id="who"></span><span id="ver" style="opacity:.6"></span></span>
-    <span class="fb"><button id="upd" hidden>Aktualisieren</button><button id="logout" hidden>Abmelden</button></span>
+    <span class="fb"><button id="theme">Hell</button><button id="upd" hidden>Aktualisieren</button><button id="logout" hidden>Abmelden</button></span>
   </footer>
 </div>
 
@@ -263,7 +280,7 @@ const AREA_GRUPPE = { 'Terrasse': 'Terrasse' };
 const GRUPPEN_REIHENFOLGE = ['Obergeschoss', 'Untergeschoss'];
 /* ===================================================================== */
 
-const VERSION = 'v4.38 · 18.11. 13:45';
+const VERSION = 'v4.39 · 18.11. 13:55';
 const KEY = 'steuerung_tokens_v1';
 const TABKEY = 'steuerung_tab_v1';
 const ORIGIN = location.origin;
@@ -1213,6 +1230,23 @@ function maybeBuild() {
   if (!WEATHER) updateWeatherFromEntity();
 }
 
+// Design umschalten: Dunkel → Hell → Automatisch (wie Handy)
+const THEMES = ['dark', 'light', 'auto'], THEME_TXT = { dark: '🌙 Dunkel', light: '☀️ Hell', auto: '◐ Auto' };
+function applyTheme() {
+  let t = 'dark'; try { t = localStorage.getItem('steuerung_theme') || 'dark'; } catch (e) {}
+  const light = t === 'light' || (t === 'auto' && matchMedia('(prefers-color-scheme: light)').matches);
+  if (light) document.documentElement.dataset.theme = 'light'; else delete document.documentElement.dataset.theme;
+  const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = light ? '#F2F3F6' : '#0F1115';
+  $('#theme').textContent = THEME_TXT[t];
+}
+$('#theme').onclick = () => {
+  let t = 'dark'; try { t = localStorage.getItem('steuerung_theme') || 'dark'; } catch (e) {}
+  t = THEMES[(THEMES.indexOf(t) + 1) % THEMES.length];
+  try { localStorage.setItem('steuerung_theme', t); } catch (e) {}
+  applyTheme();
+};
+try { matchMedia('(prefers-color-scheme: light)').addEventListener('change', applyTheme); } catch (e) {}
+applyTheme();
 $('#upd').onclick = () => {
   call('script', 'turn_on', {}, UPDATE_SKRIPT);
   toast('Aktualisierung läuft – Seite lädt gleich neu …', true);
