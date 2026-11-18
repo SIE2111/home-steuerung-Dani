@@ -105,7 +105,12 @@
   .nm.lg{font-size:13.5px} .nm.xl{font-size:12.5px}
   .sub{font-size:13px;color:var(--muted);margin-top:2px}
   .tile.on .sub{color:#E7C985}
-  .spacer{flex:none;height:4px}
+  .spacer{display:none}
+  .tile{min-height:0 !important}
+  .row{justify-content:flex-start !important;gap:10px}
+  .row .ico{flex:none;cursor:pointer}
+  .row .txt{flex:1;min-width:0}
+  .row .ctl .tog{display:none}
   .extra{margin-top:auto}
   .extra:empty{display:none}
   input[type=range]{width:100%;height:30px;-webkit-appearance:none;appearance:none;background:transparent;margin:0}
@@ -254,7 +259,7 @@ const AREA_GRUPPE = { 'Terrasse': 'Terrasse' };
 const GRUPPEN_REIHENFOLGE = ['Obergeschoss', 'Untergeschoss'];
 /* ===================================================================== */
 
-const VERSION = 'v4.33 · 18.11. 12:40';
+const VERSION = 'v4.34 · 18.11. 12:45';
 const KEY = 'steuerung_tokens_v1';
 const TABKEY = 'steuerung_tab_v1';
 const ORIGIN = location.origin;
@@ -705,19 +710,23 @@ function makeCard(eid) {
   const ctl = el.querySelector('.ctl'), extra = el.querySelector('.extra');
   ico.innerHTML = svg(isLight(eid) ? 'light' : dom);
   let slider = null, tiltBox = null;
+  // Name und Zustand neben das Symbol (spart Höhe, Texte stehen in jeder Kachel auf gleicher Höhe)
+  const txtBox = nm.parentNode;
+  el.querySelector('.row').insertBefore(txtBox, ctl);
+  txtBox.className = 'txt';
 
   if (dom === 'light' || dom === 'switch' || dom === 'input_boolean') {
     const t = document.createElement('button');
     t.className = 'tog'; t.setAttribute('aria-label', 'Ein/Aus');
     ctl.appendChild(t);
     const tog = (e) => { e.stopPropagation(); call(dom, 'toggle', {}, eid); };
-    t.onclick = tog; ico.onclick = tog;
+    t.onclick = tog; ico.onclick = tog; txtBox.onclick = tog; txtBox.style.cursor = 'pointer';
   }
   if (dom === 'scene' || dom === 'script') {
     const b = document.createElement('button');
     b.className = 'go'; b.textContent = 'Starten';
     b.onclick = () => call(dom, 'turn_on', {}, eid);
-    ctl.appendChild(b); ico.onclick = () => call(dom, 'turn_on', {}, eid);
+    extra.appendChild(b); ico.onclick = () => call(dom, 'turn_on', {}, eid);
   }
   if (dom === 'cover') {
     extra.innerHTML = '<div class="btns"><button class="btn" data-s="open_cover">▲</button><button class="btn" data-s="stop_cover">■</button><button class="btn" data-s="close_cover">▼</button></div>';
