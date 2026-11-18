@@ -139,8 +139,9 @@
   .go:active{background:var(--accent);color:#14161B}
 
   /* Zeit */
-  .rbox{grid-column:1/-1;border:1px solid var(--line);border-radius:26px;padding:12px;background:rgba(255,255,255,.02)}
-  .rbox .zh{margin:2px 6px 12px}
+  .rbox{grid-column:1/-1;border:1.5px solid rgba(255,255,255,.22);border-radius:24px;padding:10px 8px 8px;background:rgba(255,255,255,.055);box-shadow:0 6px 22px -14px rgba(0,0,0,.8)}
+  .rbox .grid{gap:8px}
+  .rbox .zh{margin:2px 8px 10px;color:var(--accent)}
   .zh{font-size:14px;color:var(--text);font-weight:800;letter-spacing:.04em;text-transform:uppercase;margin:6px 4px 10px}
   .zl{display:flex;flex-direction:column;gap:8px;margin-bottom:18px}
   .zrow{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:12px 14px}
@@ -262,7 +263,7 @@ const AREA_GRUPPE = { 'Terrasse': 'Terrasse' };
 const GRUPPEN_REIHENFOLGE = ['Obergeschoss', 'Untergeschoss'];
 /* ===================================================================== */
 
-const VERSION = 'v4.37 · 18.11. 13:40';
+const VERSION = 'v4.38 · 18.11. 13:45';
 const KEY = 'steuerung_tokens_v1';
 const TABKEY = 'steuerung_tab_v1';
 const ORIGIN = location.origin;
