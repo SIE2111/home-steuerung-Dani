@@ -138,6 +138,8 @@
   .go:active{background:var(--accent);color:#14161B}
 
   /* Zeit */
+  .rbox{grid-column:1/-1;border:1px solid var(--line);border-radius:26px;padding:12px;background:rgba(255,255,255,.02)}
+  .rbox .zh{margin:2px 6px 12px}
   .zh{font-size:14px;color:var(--text);font-weight:800;letter-spacing:.04em;text-transform:uppercase;margin:6px 4px 10px}
   .zl{display:flex;flex-direction:column;gap:8px;margin-bottom:18px}
   .zrow{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:12px 14px}
@@ -259,7 +261,7 @@ const AREA_GRUPPE = { 'Terrasse': 'Terrasse' };
 const GRUPPEN_REIHENFOLGE = ['Obergeschoss', 'Untergeschoss'];
 /* ===================================================================== */
 
-const VERSION = 'v4.35 · 18.11. 12:40';
+const VERSION = 'v4.36 · 18.11. 13:35';
 const KEY = 'steuerung_tokens_v1';
 const TABKEY = 'steuerung_tab_v1';
 const ORIGIN = location.origin;
@@ -846,12 +848,12 @@ function renderGrid() {
   if (current === 'zeit') { g.hidden = true; z.hidden = false; renderZeitList(); renderZeitForm(); updateSummary(); return; }
   g.hidden = false; z.hidden = true;
   let e = entitiesOf(current);
-  let lastTyp = null;
+  let lastTyp = null, ziel = g;
   const add = (eid) => {
     const c = makeCard(eid); cards[eid] = c; c.update(S[eid]);
     const t = typOf(eid);
     if (lastTyp !== null && t !== lastTyp) c.el.style.gridColumnStart = '1';
-    lastTyp = t; g.appendChild(c.el);
+    lastTyp = t; ziel.appendChild(c.el);
   };
   const grp = current.startsWith('g:') ? groups().find((x) => x.id === current) : null;
   const room = grp && currentRoom !== 'alle' ? grp.rooms.find((r) => r.id === currentRoom) : null;
@@ -861,8 +863,13 @@ function renderGrid() {
     e = [];
     grp.rooms.forEach((r) => {
       const re = r.entities.filter(passt); if (!re.length) return;
-      const h = document.createElement('div'); h.className = 'zh'; h.style.gridColumn = '1/-1'; h.textContent = r.name; g.appendChild(h); lastTyp = null;
+      // jeder Raum in einem eigenen Rahmen
+      const box = document.createElement('section'); box.className = 'rbox';
+      const h = document.createElement('div'); h.className = 'zh'; h.textContent = r.name; box.appendChild(h);
+      ziel = document.createElement('div'); ziel.className = 'grid'; box.appendChild(ziel);
+      g.appendChild(box); lastTyp = null;
       re.forEach(add); e = e.concat(re);
+      ziel = g;
     });
   } else { e = e.filter(passt); e.forEach(add); }
   if (!e.length) g.innerHTML = '<div style="grid-column:1/-1;color:var(--muted);text-align:center;padding:40px 0">Keine Einträge.</div>';
