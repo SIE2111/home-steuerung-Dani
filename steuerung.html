@@ -112,6 +112,8 @@
   .row .ico{flex:none;cursor:pointer;width:36px;height:36px;border-radius:12px}
   .row .ico svg{width:20px;height:20px}
   .row .txt{flex:1;min-width:0}
+  .nm.top{margin:0 2px -2px}
+  .row .txt .sub{margin-top:0}
   .row .ctl .tog{display:none}
   .extra{margin-top:auto}
   .extra:empty{display:none}
@@ -280,7 +282,7 @@ const AREA_GRUPPE = { 'Terrasse': 'Terrasse' };
 const GRUPPEN_REIHENFOLGE = ['Obergeschoss', 'Untergeschoss'];
 /* ===================================================================== */
 
-const VERSION = 'v4.39 · 18.11. 13:55';
+const VERSION = 'v4.40 · 20.11. 12:20';
 const KEY = 'steuerung_tokens_v1';
 const TABKEY = 'steuerung_tab_v1';
 const ORIGIN = location.origin;
@@ -735,13 +737,16 @@ function makeCard(eid) {
   const txtBox = nm.parentNode;
   el.querySelector('.row').insertBefore(txtBox, ctl);
   txtBox.className = 'txt';
+  // Name als Überschrift über die volle Breite, Zustand neben dem Symbol
+  el.insertBefore(nm, el.firstChild);
+  nm.classList.add('top');
 
   if (dom === 'light' || dom === 'switch' || dom === 'input_boolean') {
     const t = document.createElement('button');
     t.className = 'tog'; t.setAttribute('aria-label', 'Ein/Aus');
     ctl.appendChild(t);
     const tog = (e) => { e.stopPropagation(); call(dom, 'toggle', {}, eid); };
-    t.onclick = tog; ico.onclick = tog; txtBox.onclick = tog; txtBox.style.cursor = 'pointer';
+    t.onclick = tog; ico.onclick = tog; txtBox.onclick = tog; txtBox.style.cursor = 'pointer'; nm.onclick = tog; nm.style.cursor = 'pointer';
   }
   if (dom === 'scene' || dom === 'script') {
     const b = document.createElement('button');
@@ -776,7 +781,7 @@ function makeCard(eid) {
     const a = st.attributes || {};
     nm.textContent = tileName(eid);
     const L = nm.textContent.length;
-    nm.classList.toggle('lg', L > 20 && L <= 28); nm.classList.toggle('xl', L > 28);
+    nm.classList.toggle('lg', L > 24 && L <= 32); nm.classList.toggle('xl', L > 32);
     const on = st.state === 'on' || st.state === 'open' || st.state === 'opening';
     el.classList.toggle('on', on && dom !== 'scene' && dom !== 'script');
     el.classList.toggle('unavailable', st.state === 'unavailable');
