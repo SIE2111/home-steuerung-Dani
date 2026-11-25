@@ -59,6 +59,7 @@
   .srow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0}
   .srow + .srow{border-top:1px solid var(--line)}
   .sbtns{display:flex;gap:8px;flex:none}
+  .cblk .sbtns{gap:6px} .cblk .sbtns .pill{padding:10px 11px}
   #covRows .cblk{border-top:1px solid var(--line);padding-bottom:6px}
   .lblk{padding-bottom:6px}
   .csel{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:2px 0 8px}
@@ -160,6 +161,17 @@
   .primary{background:var(--accent);color:#16130B;border:0;border-radius:14px;padding:13px;font-size:16px;font-weight:700;cursor:pointer}
 
   /* Energie */
+  .echart{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:12px 14px 10px;margin-bottom:14px}
+  .ech{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .ech>div{flex:1;text-align:center} .ech b{display:block;font-size:15px} .ech small{color:var(--muted);font-size:12px}
+  .cnav{width:34px;height:34px;border-radius:10px;border:1px solid var(--line);background:var(--card2);color:var(--text);font-size:20px;cursor:pointer;flex:none}
+  .cnav:disabled{opacity:.3}
+  .cbars{display:flex;align-items:flex-end;gap:2px;height:140px}
+  .cb{flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;cursor:pointer;min-width:0}
+  .cb i{display:block;width:100%;border-radius:3px 3px 1px 1px;background:linear-gradient(180deg,var(--accent),var(--accent2));opacity:.85}
+  .cb.zk i{opacity:.15} .cb.sel i{opacity:1;outline:2px solid var(--text)} .cb.hd i{opacity:1}
+  .cb span{font-size:9px;color:var(--muted);height:12px;line-height:12px;margin-top:3px}
+  .cmax{font-size:11px;color:var(--muted);text-align:right;margin-top:4px;min-height:13px}
   .etot{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:18px}
   .ebox{background:linear-gradient(150deg,#1F2A3D 0%,#1A1D24 70%);border:1px solid var(--line);border-radius:20px;padding:14px 16px}
   .ebox .v{font-size:28px;font-weight:750;letter-spacing:-.02em}
@@ -282,7 +294,7 @@ const AREA_GRUPPE = { 'Terrasse': 'Terrasse' };
 const GRUPPEN_REIHENFOLGE = ['Obergeschoss', 'Untergeschoss'];
 /* ===================================================================== */
 
-const VERSION = 'v4.40 · 20.11. 12:20';
+const VERSION = 'v4.41 · 25.11. 19:20';
 const KEY = 'steuerung_tokens_v1';
 const TABKEY = 'steuerung_tab_v1';
 const ORIGIN = location.origin;
@@ -412,7 +424,7 @@ async function connect() {
       const hadTab = ENERGIE.length > 0;
       ENERGIE = (Array.isArray(r) ? r : []).filter(Array.isArray).map((x) => ({ eid: x[0], dev: x[1] || '', room: x[2] || '' }));
       if (haveStates && haveAreas && hadTab !== ENERGIE.length > 0) renderTabs();
-      if (current === 'energie') renderEnergie();
+      if (current === 'energie') { renderEnergie(); if (Date.now() - enLadeZeit > 600000 && enStat && !enStat.laden) ladeMonat(); }
     } else if (m.type === 'result' && m.id === idTpl && !m.success) {
       haveAreas = true; AREAS = []; maybeBuild();
     } else if (m.type === 'event' && m.id === idTpl) {
@@ -868,7 +880,7 @@ function renderGrid() {
   g.innerHTML = ''; cards = {};
   en.hidden = current !== 'energie';
   if (current === 'energie' || current === 'zeit') $('#ftabs').hidden = true;
-  if (current === 'energie') { g.hidden = true; z.hidden = true; renderEnergie(); updateSummary(); return; }
+  if (current === 'energie') { g.hidden = true; z.hidden = true; renderEnergie(); if ($('#enList') && Date.now() - enLadeZeit > 60000) ladeMonat(); updateSummary(); return; }
   if (current === 'zeit') { g.hidden = true; z.hidden = false; renderZeitList(); renderZeitForm(); updateSummary(); return; }
   g.hidden = false; z.hidden = true;
   let e = entitiesOf(current);
@@ -929,7 +941,7 @@ function updateSummary() {
       [0, 25, 50, 75, 100].map((p) => '<button data-p="' + p + '">' + p + ' %</button>').join('') + '</div>';
     const selRow = (kind, list, cur) => '<div class="csel" data-k="' + kind + '">' + list.map((x) => '<button data-v="' + esc(x.id) + '"' + (x.id === cur ? ' class="act"' : '') + '>' + esc(x.name) + '</button>').join('') + '</div>';
     box.innerHTML = '<div class="cblk"><div class="srow"><div><div class="big">Jalousien</div><div class="small"></div></div>' +
-      '<div class="sbtns"><button class="pill" data-s="open_cover">▲ Rauf</button><button class="pill" data-s="close_cover">▼ Runter</button></div></div>' +
+      '<div class="sbtns"><button class="pill" data-s="open_cover">▲ Rauf</button><button class="pill" data-s="stop_cover">■ Stopp</button><button class="pill" data-s="close_cover">▼ Runter</button></div></div>' +
       selRow('et', et, covEt) + (sd.length > 1 ? selRow('sd', sd, covSd) : '') +
       chips('pos', 'Position') + (sel.some(kippbar) ? chips('tilt', 'Kippstellung') : '') + '</div>';
     box.querySelectorAll('.csel button').forEach((b) => (b.onclick = () => {
@@ -1042,7 +1054,10 @@ function enFmt(cls, v, unit) {
 }
 function scheduleEnergie() { clearTimeout(energieTimer); energieTimer = setTimeout(renderEnergie, 400); }
 function renderEnergie() {
-  const box = $('#energie'); if (!box) return;
+  const sec = $('#energie'); if (!sec) return;
+  if (!$('#enList')) { sec.innerHTML = '<div id="enChart"></div><div id="enList"></div>'; ladeMonat(); }
+  const box = $('#enList');
+  if (enStat && !enStat.laden && !enStat.ids && ENERGIE.some((x) => ((S[x.eid] || {}).attributes || {}).device_class === 'energy')) ladeMonat();
   // Sensoren nach Gerät zusammenfassen
   const devs = {};
   ENERGIE.forEach((x) => {
@@ -1080,6 +1095,50 @@ function renderEnergie() {
   });
   html += '</div>';
   box.innerHTML = html;
+}
+
+/* ---------- Energie: Monatsgrafik aus der HA-Statistik ---------- */
+let enMonat = 0, enStat = null, enLadeZeit = 0, enWahl = null;
+function wsAsk(msg) {
+  return new Promise((res) => { const id = send(msg); dashWait[id] = res; setTimeout(() => { if (dashWait[id]) { delete dashWait[id]; res(null); } }, 15000); });
+}
+async function ladeMonat() {
+  const ids = ENERGIE.filter((x) => ((S[x.eid] || {}).attributes || {}).device_class === 'energy').map((x) => x.eid);
+  const now = new Date(), start = new Date(now.getFullYear(), now.getMonth() + enMonat, 1), end = new Date(now.getFullYear(), now.getMonth() + enMonat + 1, 1);
+  enStat = { start, end, tage: {}, laden: true, ids: ids.length };
+  zeichneMonat();
+  if (!ids.length) { enStat.laden = false; zeichneMonat(); return; }
+  const r = await wsAsk({ type: 'recorder/statistics_during_period', start_time: start.toISOString(), end_time: end.toISOString(), statistic_ids: ids, period: 'day', types: ['change'], units: { energy: 'kWh' } });
+  const tage = {};
+  Object.values(r || {}).forEach((rows) => (rows || []).forEach((x) => {
+    const d = new Date(typeof x.start === 'number' ? x.start : Date.parse(x.start)).getDate();
+    if (typeof x.change === 'number') tage[d] = (tage[d] || 0) + Math.max(0, x.change);
+  }));
+  enStat = { start, end, tage, laden: false, fehler: !r, ids: ids.length };
+  enLadeZeit = Date.now();
+  zeichneMonat();
+}
+function zeichneMonat() {
+  const c = $('#enChart'); if (!c || !enStat) return;
+  const { start, end, tage } = enStat;
+  const n = Math.round((end - start) / 86400000), heute = new Date();
+  const imMonat = start.getMonth() === heute.getMonth() && start.getFullYear() === heute.getFullYear();
+  const werte = []; let max = 0, sum = 0;
+  for (let d = 1; d <= n; d++) { const v = tage[d] || 0; werte.push(v); max = Math.max(max, v); sum += v; }
+  const titel = start.toLocaleDateString('de-AT', { month: 'long', year: 'numeric' });
+  const fmt = (v) => v.toLocaleString('de-AT', { minimumFractionDigits: v < 10 ? 2 : 1, maximumFractionDigits: v < 10 ? 2 : 1 }) + ' kWh';
+  let info = enStat.laden ? 'lädt …' : enStat.fehler ? 'Statistik nicht verfügbar' : !enStat.ids ? 'Kein Verbrauchszähler vorhanden' : 'Summe ' + fmt(sum);
+  if (enWahl && tage[enWahl] !== undefined) info = enWahl + '. ' + titel.split(' ')[0] + ': ' + fmt(tage[enWahl] || 0);
+  let bars = '';
+  werte.forEach((v, i) => {
+    const d = i + 1, zuk = imMonat && d > heute.getDate();
+    const hgt = max > 0 ? Math.max(v > 0 ? 3 : 0, Math.round((v / max) * 100)) : 0;
+    bars += '<div class="cb' + (zuk ? ' zk' : '') + (enWahl === d ? ' sel' : '') + (imMonat && d === heute.getDate() ? ' hd' : '') + '" data-d="' + d + '" title="' + d + '.: ' + fmt(v) + '"><i style="height:' + hgt + '%"></i><span>' + (d === 1 || d % 5 === 0 ? d : '') + '</span></div>';
+  });
+  c.innerHTML = '<div class="echart"><div class="ech"><button class="cnav" data-m="-1">‹</button><div><b>Verbrauch ' + esc(titel) + '</b><small>' + esc(info) + '</small></div><button class="cnav" data-m="1"' + (enMonat >= 0 ? ' disabled' : '') + '>›</button></div>' +
+    '<div class="cbars">' + bars + '</div><div class="cmax">' + (max > 0 ? 'max. ' + fmt(max) + ' pro Tag' : '') + '</div></div>';
+  c.querySelectorAll('.cnav').forEach((b) => (b.onclick = () => { enMonat = Math.min(0, enMonat + Number(b.dataset.m)); enWahl = null; ladeMonat(); }));
+  c.querySelectorAll('.cb').forEach((b) => (b.onclick = () => { const d = Number(b.dataset.d); enWahl = enWahl === d ? null : d; zeichneMonat(); }));
 }
 
 /* ---------- Zeitsteuerung ---------- */
