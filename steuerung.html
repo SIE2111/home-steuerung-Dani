@@ -59,7 +59,8 @@
   .srow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0}
   .srow + .srow{border-top:1px solid var(--line)}
   .sbtns{display:flex;gap:8px;flex:none}
-  .cblk .sbtns{gap:6px} .cblk .sbtns .pill{padding:10px 11px}
+  .cblk .srow{flex-wrap:wrap}
+  .cblk .sbtns{gap:6px;flex:0 1 auto;margin-left:auto;max-width:100%} .cblk .sbtns .pill{padding:8px 10px;font-size:13px;white-space:nowrap}
   #covRows .cblk{border-top:1px solid var(--line);padding-bottom:6px}
   .lblk{padding-bottom:6px}
   .csel{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:2px 0 8px}
@@ -294,7 +295,7 @@ const AREA_GRUPPE = { 'Terrasse': 'Terrasse' };
 const GRUPPEN_REIHENFOLGE = ['Obergeschoss', 'Untergeschoss'];
 /* ===================================================================== */
 
-const VERSION = 'v4.41 · 25.11. 19:20';
+const VERSION = 'v4.42 · 25.11. 22:40';
 const KEY = 'steuerung_tokens_v1';
 const TABKEY = 'steuerung_tab_v1';
 const ORIGIN = location.origin;
