@@ -60,6 +60,7 @@
   .srow + .srow{border-top:1px solid var(--line)}
   .sbtns{display:flex;gap:8px;flex:none}
   .cblk .srow{flex-wrap:wrap}
+  .cblk .sbtns .pill.sym{width:48px;padding:8px 0;font-size:16px;text-align:center}
   .cblk .sbtns{gap:6px;flex:0 1 auto;margin-left:auto;max-width:100%} .cblk .sbtns .pill{padding:8px 10px;font-size:13px;white-space:nowrap}
   #covRows .cblk{border-top:1px solid var(--line);padding-bottom:6px}
   .lblk{padding-bottom:6px}
@@ -295,7 +296,7 @@ const AREA_GRUPPE = { 'Terrasse': 'Terrasse' };
 const GRUPPEN_REIHENFOLGE = ['Obergeschoss', 'Untergeschoss'];
 /* ===================================================================== */
 
-const VERSION = 'v4.42 · 25.11. 22:40';
+const VERSION = 'v4.43 · 26.11. 13:00';
 const KEY = 'steuerung_tokens_v1';
 const TABKEY = 'steuerung_tab_v1';
 const ORIGIN = location.origin;
@@ -942,7 +943,7 @@ function updateSummary() {
       [0, 25, 50, 75, 100].map((p) => '<button data-p="' + p + '">' + p + ' %</button>').join('') + '</div>';
     const selRow = (kind, list, cur) => '<div class="csel" data-k="' + kind + '">' + list.map((x) => '<button data-v="' + esc(x.id) + '"' + (x.id === cur ? ' class="act"' : '') + '>' + esc(x.name) + '</button>').join('') + '</div>';
     box.innerHTML = '<div class="cblk"><div class="srow"><div><div class="big">Jalousien</div><div class="small"></div></div>' +
-      '<div class="sbtns"><button class="pill" data-s="open_cover">▲ Rauf</button><button class="pill" data-s="stop_cover">■ Stopp</button><button class="pill" data-s="close_cover">▼ Runter</button></div></div>' +
+      '<div class="sbtns"><button class="pill sym" data-s="open_cover" aria-label="Rauf">▲</button><button class="pill sym" data-s="stop_cover" aria-label="Stopp">■</button><button class="pill sym" data-s="close_cover" aria-label="Runter">▼</button></div></div>' +
       selRow('et', et, covEt) + (sd.length > 1 ? selRow('sd', sd, covSd) : '') +
       chips('pos', 'Position') + (sel.some(kippbar) ? chips('tilt', 'Kippstellung') : '') + '</div>';
     box.querySelectorAll('.csel button').forEach((b) => (b.onclick = () => {
