@@ -337,7 +337,7 @@ const AREA_GRUPPE = { 'Terrasse': 'Terrasse' };
 const GRUPPEN_REIHENFOLGE = ['Obergeschoss', 'Untergeschoss'];
 /* ===================================================================== */
 
-const VERSION = 'v4.47 · 28.11. 13:05';
+const VERSION = 'v4.48 · 28.11. 14:05';
 const KEY = 'steuerung_tokens_v1';
 const TABKEY = 'steuerung_tab_v1';
 const ORIGIN = location.origin;
@@ -523,7 +523,7 @@ async function connect() {
         scheduleIssues();
         if (current === 'zeit' && (d.entity_id.startsWith('automation.') || d.entity_id.startsWith('schedule.'))) renderZeitList();
         if (current === 'energie' && ENERGIE.some((x) => x.eid === d.entity_id)) scheduleEnergie();
-        if (d.entity_id.startsWith('climate.')) { if (current === 'energie') scheduleHeizung(); if (!$('#tabs').querySelector('[data-hz]') !== !(ENERGIE.length || thermostate().length)) renderTabs(); }
+        if (d.entity_id.startsWith('climate.')) { if (current === 'heizung') scheduleHeizung(); if (!$('#tabs').querySelector('[data-hz]') !== !thermostate().length) renderTabs(); }
       } else if (d.entity_id) { delete S[d.entity_id]; scheduleIssues(); if (current === 'zeit') renderZeitList(); }
     }
   };
@@ -890,7 +890,8 @@ function renderTabs() {
   rs.filter((r) => r.name !== SONSTIGES).forEach((r) => mk(r.id, r.name));
   if (szenen().length) mk('szenen', 'Szenen');
   mk('zeit', 'Zeit');
-  if (ENERGIE.length || thermostate().length) { mk('energie', 'Energie'); tabs.lastChild.dataset.hz = '1'; }
+  if (ENERGIE.length) mk('energie', 'Energie');
+  if (thermostate().length) { mk('heizung', 'Heizung'); tabs.lastChild.dataset.hz = '1'; }
   rs.filter((r) => r.name === SONSTIGES).forEach((r) => mk(r.id, r.name));
   const t2 = $('#tabs2'); t2.innerHTML = '';
   const grp = rs.find((x) => x.id === current);
@@ -939,6 +940,7 @@ function renderGrid() {
   en.hidden = current !== 'energie';
   hz.hidden = current !== 'heizung';
   if (current === 'energie' || current === 'zeit' || current === 'heizung') $('#ftabs').hidden = true;
+  if (current === 'heizung') { g.hidden = true; z.hidden = true; renderHeizung(); updateSummary(); return; }
   if (current === 'energie') { g.hidden = true; z.hidden = true; renderEnergie(); if ($('#enList') && Date.now() - enLadeZeit > 60000) ladeMonat(); updateSummary(); return; }
   if (current === 'zeit') { g.hidden = true; z.hidden = false; renderZeitList(); renderZeitForm(); updateSummary(); return; }
   g.hidden = false; z.hidden = true;
@@ -1114,8 +1116,7 @@ function enFmt(cls, v, unit) {
 function scheduleEnergie() { clearTimeout(energieTimer); energieTimer = setTimeout(renderEnergie, 400); }
 function renderEnergie() {
   const sec = $('#energie'); if (!sec) return;
-  if (!$('#enList')) { sec.innerHTML = '<div id="hzBox"></div><div id="enChart"></div><div id="enList"></div>'; ladeMonat(); }
-  renderHeizung();
+  if (!$('#enList')) { sec.innerHTML = '<div id="enChart"></div><div id="enList"></div>'; ladeMonat(); }
   const box = $('#enList');
   if (enStat && !enStat.laden && !enStat.ids && ENERGIE.some((x) => ((S[x.eid] || {}).attributes || {}).device_class === 'energy')) ladeMonat();
   // Sensoren nach Gerät zusammenfassen
@@ -1210,10 +1211,10 @@ function thermostate() { return Object.keys(S).filter((e) => e.startsWith('clima
 function scheduleHeizung() { clearTimeout(hzTimer); hzTimer = setTimeout(renderHeizung, 300); }
 function hzFmt(v) { return typeof v === 'number' ? v.toLocaleString('de-AT', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '–'; }
 function renderHeizung() {
-  const box = $('#hzBox'); if (!box) return;
+  const box = $('#heizung'); if (!box) return;
   const list = thermostate();
-  if (!list.length) { box.innerHTML = ''; return; }
-  box.innerHTML = '<div class="zh">Heizung</div><div class="hzgrid" style="margin-bottom:16px">' + list.map((eid) => {
+  if (!list.length) { box.innerHTML = '<div style="color:var(--muted);text-align:center;padding:40px 0">Kein Thermostat gefunden.</div>'; return; }
+  box.innerHTML = '<div class="hzgrid">' + list.map((eid) => {
     const st = S[eid], a = st.attributes || {};
     const soll = hzSoll[eid] !== undefined ? hzSoll[eid] : a.temperature;
     const act = a.hvac_action, aus = st.state === 'off', na = st.state === 'unavailable';
@@ -1388,8 +1389,7 @@ function maybeBuild() {
   $('#msg').hidden = true; $('#app').hidden = false; $('#logout').hidden = false;
   $('#upd').hidden = !S[UPDATE_SKRIPT];
   let saved = 'alle'; try { saved = localStorage.getItem(TABKEY) || 'alle'; } catch (e) {}
-  if (saved === 'heizung') saved = 'energie';
-  const valid = ['alle', 'zeit', 'energie'].concat(groups().map((r) => r.id)).concat(szenen().length ? ['szenen'] : []);
+  const valid = ['alle', 'zeit', 'energie', 'heizung'].concat(groups().map((r) => r.id)).concat(szenen().length ? ['szenen'] : []);
   current = valid.includes(saved) ? saved : 'alle';
   try { currentRoom = localStorage.getItem(TABKEY + 'r') || 'alle'; } catch (e) {}
   const gg = groups().find((x) => x.id === current);
