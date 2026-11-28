@@ -244,6 +244,27 @@
   html[data-theme="light"] input[type=range]::-moz-range-track{background:rgba(0,0,0,.12)}
   html[data-theme="light"] .ebar{background:rgba(0,0,0,.08)}
   html[data-theme="light"] .tog::after{background:#9AA0AD}
+  /* Wanddisplay (flaches Querformat, z. B. Shelly Wall Display) */
+  html.wand body{padding:8px 10px;min-height:0}
+  html.wand header, html.wand footer, html.wand #notes, html.wand .wf{display:none!important}
+  html.wand .wrap{max-width:none}
+  html.wand #app:not([hidden]){display:grid;grid-template-columns:290px minmax(0,1fr);gap:12px;align-items:stretch;height:calc(100vh - 16px)}
+  html.wand .side{position:static;overflow-y:auto;height:100%;scrollbar-width:none}
+  html.wand .side::-webkit-scrollbar{display:none}
+  html.wand .mainc{overflow-y:auto;height:100%;padding-right:2px;scrollbar-width:none}
+  html.wand .mainc::-webkit-scrollbar{display:none}
+  html.wand .weather{padding:10px 12px;margin-bottom:8px;border-radius:18px}
+  html.wand .wi{font-size:30px} html.wand .wt{font-size:26px}
+  html.wand .wd{font-size:12px;gap:1px 8px}
+  html.wand .summary{padding:2px 12px;margin-bottom:0;border-radius:18px}
+  html.wand .summary .big{font-size:15px}
+  html.wand .tabs{flex-wrap:nowrap!important;overflow-x:auto!important;padding:0 0 8px!important;margin:0 0 2px!important}
+  html.wand .tab{padding:7px 12px;font-size:13px}
+  html.wand .tab.sm{padding:5px 11px;font-size:12px}
+  html.wand .grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))!important;gap:8px}
+  html.wand .tile{padding:10px;border-radius:18px}
+  html.wand .rbox{padding:8px 6px 6px;border-radius:20px}
+  html.wand .hzgrid{grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
 </style>
 </head>
 <body>
@@ -316,7 +337,7 @@ const AREA_GRUPPE = { 'Terrasse': 'Terrasse' };
 const GRUPPEN_REIHENFOLGE = ['Obergeschoss', 'Untergeschoss'];
 /* ===================================================================== */
 
-const VERSION = 'v4.45 · 28.11. 12:50';
+const VERSION = 'v4.46 · 28.11. 13:00';
 const KEY = 'steuerung_tokens_v1';
 const TABKEY = 'steuerung_tab_v1';
 const ORIGIN = location.origin;
@@ -1394,6 +1415,13 @@ $('#theme').onclick = () => {
 };
 try { matchMedia('(prefers-color-scheme: light)').addEventListener('change', applyTheme); } catch (e) {}
 applyTheme();
+// Wanddisplay-Ansicht: mit ?wand in der Adresse oder automatisch bei flachem Querformat
+function pruefeWand() {
+  const q = new URLSearchParams(location.search);
+  const an = q.has('wand') || (innerHeight <= 620 && innerWidth >= innerHeight * 1.5 && innerWidth >= 700);
+  document.documentElement.classList.toggle('wand', an);
+}
+pruefeWand(); addEventListener('resize', pruefeWand);
 $('#upd').onclick = () => {
   call('script', 'turn_on', {}, UPDATE_SKRIPT);
   toast('Aktualisierung läuft – Seite lädt gleich neu …', true);
