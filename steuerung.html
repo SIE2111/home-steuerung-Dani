@@ -318,8 +318,6 @@ const VERSTECKEN = [
 // Diese Entitäten werden nie als Geräte-Kachel angezeigt (Technik)
 const AUSSCHLUSS = [
   /^switch\.(szenenschalter|schalter)_/,
-  // Kühlgeräte nie per Tipp ausschalten können (nur Anzeige unter Energie)
-  /^switch\.steckdose_(kuhl|kühl|gefrier)/i,
   /permit_join|bridge/i,
   /backlight|vibration|momentary|countdown|indicator|induction|power_on|child_lock|led_|relay_status/i,
 ];
@@ -339,7 +337,7 @@ const AREA_GRUPPE = { 'Terrasse': 'Terrasse' };
 const GRUPPEN_REIHENFOLGE = ['Obergeschoss', 'Untergeschoss'];
 /* ===================================================================== */
 
-const VERSION = 'v4.49 · 28.11. 14:20';
+const VERSION = 'v4.50 · 28.11. 14:25';
 const KEY = 'steuerung_tokens_v1';
 const TABKEY = 'steuerung_tab_v1';
 const ORIGIN = location.origin;
@@ -512,7 +510,9 @@ async function connect() {
       console.log('[steuerung] bereiche', JSON.stringify(AREAS));
       haveAreas = true; maybeBuild();
     } else if (m.type === 'result' && m.id === idUser && m.success) {
+      const warAdmin = isAdmin;
       userName = m.result.name || ''; isAdmin = !!m.result.is_admin;
+      if (warAdmin !== isAdmin && haveStates && haveAreas) maybeBuild();
       $('#hello').textContent = new Date().toLocaleDateString('de-AT', { weekday: 'long', day: 'numeric', month: 'long' });
       $('#greet').textContent = greeting() + (userName ? ', ' + userName.split(' ')[0] : '');
       $('#who').textContent = userName ? 'Angemeldet als ' + userName : '';
@@ -706,7 +706,10 @@ function renderIssues() {
 
 /* ---------- Geräte, Räume, Szenen ---------- */
 function showMsg(html) { const m = $('#msg'); m.innerHTML = html; m.hidden = false; }
+// Kühlgeräte: Schalter nur für Administratoren sichtbar
+const NUR_ADMIN = /^switch\.steckdose_(kuhl|kühl|gefrier)/i;
 function visible(eid) {
+  if (NUR_ADMIN.test(eid) && !isAdmin) return false;
   const dom = eid.split('.')[0];
   return S[eid] && GERAETE_DOMAINS.includes(dom) && !VERSTECKEN.includes(eid) && !AUSSCHLUSS.some((rx) => rx.test(eid)) && !inSchalter(eid);
 }
