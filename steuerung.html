@@ -316,7 +316,7 @@ const AREA_GRUPPE = { 'Terrasse': 'Terrasse' };
 const GRUPPEN_REIHENFOLGE = ['Obergeschoss', 'Untergeschoss'];
 /* ===================================================================== */
 
-const VERSION = 'v4.44 · 28.11. 12:00';
+const VERSION = 'v4.45 · 28.11. 12:50';
 const KEY = 'steuerung_tokens_v1';
 const TABKEY = 'steuerung_tab_v1';
 const ORIGIN = location.origin;
@@ -357,7 +357,21 @@ function goLogin() {
     client_id: CLIENT_ID, redirect_uri: REDIRECT, state: btoa(REDIRECT)
   });
 }
+// Läuft die Seite eingebettet in Home Assistant (Webseiten-Dashboard, Wanddisplay),
+// wird die Anmeldung von Home Assistant mitbenutzt – keine zweite Anmeldung nötig.
+function haParent() {
+  try {
+    if (window.parent === window) return null;
+    const ha = window.parent.document.querySelector('home-assistant');
+    return ha && ha.hass && ha.hass.auth ? ha.hass.auth : null;
+  } catch (e) { return null; }
+}
 async function getTokens() {
+  const auth = haParent();
+  if (auth && auth.data && auth.data.access_token) {
+    try { if (auth.expired || Date.now() > (auth.data.expires || 0) - 30000) await auth.refreshAccessToken(); } catch (e) {}
+    return { access_token: auth.data.access_token, refresh_token: auth.data.refresh_token, expires: auth.data.expires, eingebettet: true };
+  }
   const p = new URLSearchParams(location.search);
   if (p.get('code')) {
     const t = await tokenRequest({ grant_type: 'authorization_code', code: p.get('code'), client_id: CLIENT_ID });
