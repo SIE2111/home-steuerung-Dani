@@ -318,6 +318,8 @@ const VERSTECKEN = [
 // Diese Entitäten werden nie als Geräte-Kachel angezeigt (Technik)
 const AUSSCHLUSS = [
   /^switch\.(szenenschalter|schalter)_/,
+  // Kühlgeräte nie per Tipp ausschalten können (nur Anzeige unter Energie)
+  /^switch\.steckdose_(kuhl|kühl|gefrier)/i,
   /permit_join|bridge/i,
   /backlight|vibration|momentary|countdown|indicator|induction|power_on|child_lock|led_|relay_status/i,
 ];
@@ -337,7 +339,7 @@ const AREA_GRUPPE = { 'Terrasse': 'Terrasse' };
 const GRUPPEN_REIHENFOLGE = ['Obergeschoss', 'Untergeschoss'];
 /* ===================================================================== */
 
-const VERSION = 'v4.48 · 28.11. 14:05';
+const VERSION = 'v4.49 · 28.11. 14:20';
 const KEY = 'steuerung_tokens_v1';
 const TABKEY = 'steuerung_tab_v1';
 const ORIGIN = location.origin;
