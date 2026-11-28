@@ -163,6 +163,25 @@
   .primary{background:var(--accent);color:#16130B;border:0;border-radius:14px;padding:13px;font-size:16px;font-weight:700;cursor:pointer}
 
   /* Energie */
+  .hzgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+  .hzcard{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:14px 16px}
+  .hzcard.heat{border-color:#7A3A1E;background:linear-gradient(150deg,#3A2014 0%,#241C17 55%,var(--card) 100%)}
+  html[data-theme="light"] .hzcard.heat{border-color:#F0B48A;background:linear-gradient(150deg,#FFE6D4 0%,#FFF5EE 55%,#FFFFFF 100%)}
+  .hzcard.unavailable{opacity:.45}
+  .hzh{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+  .hzflame{font-size:22px;line-height:1}
+  .hzmain{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin:14px 0 6px}
+  .hzist span,.hzsoll>span{display:block;font-size:12px;color:var(--muted)}
+  .hzist b{font-size:38px;font-weight:750;letter-spacing:-.02em;line-height:1.1}
+  .hzist b small{font-size:16px;font-weight:600;color:var(--muted)}
+  .hzsoll{text-align:right} .hzsoll.off{opacity:.45}
+  .hzset{display:flex;align-items:center;gap:8px;margin-top:4px}
+  .hzset b{font-size:22px;font-weight:700;min-width:52px;text-align:center}
+  .hzset button{width:42px;height:42px;border-radius:12px;border:1px solid var(--line);background:var(--card2);color:var(--text);font-size:22px;cursor:pointer}
+  .hzset button:active{background:var(--accent);color:#14161B}
+  .hzrow{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+  .hzrow button{flex:1;min-width:0;background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:8px 6px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+  .hzrow button.sel{background:var(--accent);color:#14161B;border-color:var(--accent)}
   .echart{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:12px 14px 10px;margin-bottom:14px}
   .ech{display:flex;align-items:center;gap:10px;margin-bottom:10px}
   .ech>div{flex:1;text-align:center} .ech b{display:block;font-size:15px} .ech small{color:var(--muted);font-size:12px}
@@ -253,6 +272,7 @@
       <div class="zform" id="zform"></div>
     </section>
     <section id="energie" hidden></section>
+    <section id="heizung" hidden></section>
     </div>
   </div>
   <div id="toast"></div>
@@ -296,7 +316,7 @@ const AREA_GRUPPE = { 'Terrasse': 'Terrasse' };
 const GRUPPEN_REIHENFOLGE = ['Obergeschoss', 'Untergeschoss'];
 /* ===================================================================== */
 
-const VERSION = 'v4.43 · 26.11. 13:00';
+const VERSION = 'v4.44 · 28.11. 12:00';
 const KEY = 'steuerung_tokens_v1';
 const TABKEY = 'steuerung_tab_v1';
 const ORIGIN = location.origin;
@@ -378,7 +398,7 @@ function setStatus(ok, text) {
 }
 function pollNotes() { if (ws && ws.readyState === 1) idNotes = send({ type: 'persistent_notification/get' }); }
 
-const TEMPLATE = "{% set ns = namespace(r=[]) %}{% for s in states if s.domain in ['light','switch','cover','input_boolean','scene','script'] %}{% set a = area_id(s.entity_id) %}{% if a %}{% set f = floor_id(s.entity_id) %}{% set ns.r = ns.r + [[s.entity_id, a, area_name(a), (floor_name(f) if f else none), (device_attr(s.entity_id, 'name_by_user') or device_attr(s.entity_id, 'name'))]] %}{% endif %}{% endfor %}{{ {'f': floors() | map('floor_name') | list, 'fi': floors() | list, 'a': areas() | list, 'r': ns.r} | to_json }}";
+const TEMPLATE = "{% set ns = namespace(r=[]) %}{% for s in states if s.domain in ['light','switch','cover','input_boolean','scene','script','climate'] %}{% set a = area_id(s.entity_id) %}{% if a %}{% set f = floor_id(s.entity_id) %}{% set ns.r = ns.r + [[s.entity_id, a, area_name(a), (floor_name(f) if f else none), (device_attr(s.entity_id, 'name_by_user') or device_attr(s.entity_id, 'name'))]] %}{% endif %}{% endfor %}{{ {'f': floors() | map('floor_name') | list, 'fi': floors() | list, 'a': areas() | list, 'r': ns.r} | to_json }}";
 // Strommessungen: alle Sensoren für Leistung, Energie, Spannung und Strom mit Gerätename und Raum
 const ENERGIE_TEMPLATE = "{% set ns = namespace(r=[]) %}{% for s in states.sensor if s.attributes.device_class in ['power','energy','voltage','current'] %}{% set ns.r = ns.r + [[s.entity_id, (device_attr(s.entity_id, 'name_by_user') or device_attr(s.entity_id, 'name') or ''), (area_name(s.entity_id) or '')]] %}{% endfor %}{{ ns.r | to_json }}";
 
@@ -468,6 +488,7 @@ async function connect() {
         scheduleIssues();
         if (current === 'zeit' && (d.entity_id.startsWith('automation.') || d.entity_id.startsWith('schedule.'))) renderZeitList();
         if (current === 'energie' && ENERGIE.some((x) => x.eid === d.entity_id)) scheduleEnergie();
+        if (d.entity_id.startsWith('climate.')) { if (current === 'heizung') scheduleHeizung(); if (!$('#tabs').querySelector('[data-hz]') !== !thermostate().length) renderTabs(); }
       } else if (d.entity_id) { delete S[d.entity_id]; scheduleIssues(); if (current === 'zeit') renderZeitList(); }
     }
   };
@@ -835,6 +856,7 @@ function renderTabs() {
   if (szenen().length) mk('szenen', 'Szenen');
   mk('zeit', 'Zeit');
   if (ENERGIE.length) mk('energie', 'Energie');
+  if (thermostate().length) { mk('heizung', 'Heizung'); tabs.lastChild.dataset.hz = '1'; }
   rs.filter((r) => r.name === SONSTIGES).forEach((r) => mk(r.id, r.name));
   const t2 = $('#tabs2'); t2.innerHTML = '';
   const grp = rs.find((x) => x.id === current);
@@ -878,10 +900,12 @@ function renderFilter(list) {
   f.hidden = false;
 }
 function renderGrid() {
-  const g = $('#grid'), z = $('#zeit'), en = $('#energie');
+  const g = $('#grid'), z = $('#zeit'), en = $('#energie'), hz = $('#heizung');
   g.innerHTML = ''; cards = {};
   en.hidden = current !== 'energie';
-  if (current === 'energie' || current === 'zeit') $('#ftabs').hidden = true;
+  hz.hidden = current !== 'heizung';
+  if (current === 'energie' || current === 'zeit' || current === 'heizung') $('#ftabs').hidden = true;
+  if (current === 'heizung') { g.hidden = true; z.hidden = true; renderHeizung(); updateSummary(); return; }
   if (current === 'energie') { g.hidden = true; z.hidden = true; renderEnergie(); if ($('#enList') && Date.now() - enLadeZeit > 60000) ladeMonat(); updateSummary(); return; }
   if (current === 'zeit') { g.hidden = true; z.hidden = false; renderZeitList(); renderZeitForm(); updateSummary(); return; }
   g.hidden = false; z.hidden = true;
@@ -1143,6 +1167,49 @@ function zeichneMonat() {
   c.querySelectorAll('.cb').forEach((b) => (b.onclick = () => { const d = Number(b.dataset.d); enWahl = enWahl === d ? null : d; zeichneMonat(); }));
 }
 
+/* ---------- Heizung (Thermostate) ---------- */
+const HZ_MODE = { off: 'Aus', heat: 'Heizen', auto: 'Auto', cool: 'Kühlen', heat_cool: 'Heizen/Kühlen', dry: 'Trocknen', fan_only: 'Lüften' };
+const HZ_ACT = { heating: 'heizt gerade', idle: 'Temperatur erreicht', off: 'aus', cooling: 'kühlt gerade', preheating: 'heizt vor' };
+const HZ_PRESET = { comfort: 'Komfort', eco: 'Eco', sleep: 'Nacht', away: 'Abwesend', home: 'Zuhause', boost: 'Boost', none: 'Manuell', manual: 'Manuell', schedule: 'Zeitplan' };
+let hzTimer = null; const hzSoll = {}, hzSend = {};
+function thermostate() { return Object.keys(S).filter((e) => e.startsWith('climate.') && !VERSTECKEN.includes(e)).sort((a, b) => nameOf(a).localeCompare(nameOf(b), 'de')); }
+function scheduleHeizung() { clearTimeout(hzTimer); hzTimer = setTimeout(renderHeizung, 300); }
+function hzFmt(v) { return typeof v === 'number' ? v.toLocaleString('de-AT', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '–'; }
+function renderHeizung() {
+  const box = $('#heizung'); if (!box) return;
+  const list = thermostate();
+  if (!list.length) { box.innerHTML = '<div style="color:var(--muted);text-align:center;padding:40px 0">Kein Thermostat gefunden.</div>'; return; }
+  box.innerHTML = '<div class="hzgrid">' + list.map((eid) => {
+    const st = S[eid], a = st.attributes || {};
+    const soll = hzSoll[eid] !== undefined ? hzSoll[eid] : a.temperature;
+    const act = a.hvac_action, aus = st.state === 'off', na = st.state === 'unavailable';
+    const heizt = act === 'heating' || act === 'preheating';
+    const modes = (a.hvac_modes || []).filter((m) => HZ_MODE[m]);
+    const pres = (a.preset_modes || []);
+    return '<div class="hzcard' + (heizt ? ' heat' : '') + (na ? ' unavailable' : '') + '" data-e="' + esc(eid) + '">' +
+      '<div class="hzh"><div><div class="nm">' + esc(nameOf(eid)) + '</div><div class="sub">' + esc((ROOM[eid] ? ROOM[eid] + ' · ' : '') + (na ? 'nicht erreichbar' : aus ? 'aus' : (HZ_ACT[act] || HZ_MODE[st.state] || st.state))) + '</div></div>' +
+      '<div class="hzflame">' + (heizt ? '🔥' : '') + '</div></div>' +
+      '<div class="hzmain"><div class="hzist"><span>Raum</span><b>' + hzFmt(a.current_temperature) + '<small> °C</small></b>' + (typeof a.current_humidity === 'number' ? '<span>' + a.current_humidity + ' % Luftfeuchte</span>' : '') + '</div>' +
+      '<div class="hzsoll' + (aus ? ' off' : '') + '"><span>Soll</span><div class="hzset"><button data-d="-1">−</button><b>' + hzFmt(soll) + '</b><button data-d="1">+</button></div></div></div>' +
+      (modes.length > 1 ? '<div class="hzrow">' + modes.map((m) => '<button data-m="' + m + '"' + (st.state === m ? ' class="sel"' : '') + '>' + HZ_MODE[m] + '</button>').join('') + '</div>' : '') +
+      (pres.length ? '<div class="hzrow">' + pres.map((m) => '<button data-p="' + esc(m) + '"' + (a.preset_mode === m ? ' class="sel"' : '') + '>' + esc(HZ_PRESET[m] || m) + '</button>').join('') + '</div>' : '') +
+      '</div>';
+  }).join('') + '</div>';
+  box.querySelectorAll('.hzcard').forEach((c) => {
+    const eid = c.dataset.e, a = (S[eid] || {}).attributes || {};
+    const step = a.target_temp_step || 0.5, min = a.min_temp ?? 5, max = a.max_temp ?? 35;
+    c.querySelectorAll('[data-d]').forEach((b) => (b.onclick = () => {
+      const cur = hzSoll[eid] !== undefined ? hzSoll[eid] : (a.temperature ?? 20);
+      const v = Math.min(max, Math.max(min, Math.round((cur + Number(b.dataset.d) * step) / step) * step));
+      hzSoll[eid] = v; c.querySelector('.hzset b').textContent = hzFmt(v);
+      clearTimeout(hzSend[eid]);
+      hzSend[eid] = setTimeout(() => { call('climate', 'set_temperature', { temperature: v }, eid); setTimeout(() => { delete hzSoll[eid]; scheduleHeizung(); }, 4000); }, 900);
+    }));
+    c.querySelectorAll('[data-m]').forEach((b) => (b.onclick = () => call('climate', 'set_hvac_mode', { hvac_mode: b.dataset.m }, eid)));
+    c.querySelectorAll('[data-p]').forEach((b) => (b.onclick = () => call('climate', 'set_preset_mode', { preset_mode: b.dataset.p }, eid)));
+  });
+}
+
 /* ---------- Zeitsteuerung ---------- */
 const TAGE = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 const TAGE_DE = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
@@ -1287,7 +1354,7 @@ function maybeBuild() {
   $('#msg').hidden = true; $('#app').hidden = false; $('#logout').hidden = false;
   $('#upd').hidden = !S[UPDATE_SKRIPT];
   let saved = 'alle'; try { saved = localStorage.getItem(TABKEY) || 'alle'; } catch (e) {}
-  const valid = ['alle', 'zeit', 'energie'].concat(groups().map((r) => r.id)).concat(szenen().length ? ['szenen'] : []);
+  const valid = ['alle', 'zeit', 'energie', 'heizung'].concat(groups().map((r) => r.id)).concat(szenen().length ? ['szenen'] : []);
   current = valid.includes(saved) ? saved : 'alle';
   try { currentRoom = localStorage.getItem(TABKEY + 'r') || 'alle'; } catch (e) {}
   const gg = groups().find((x) => x.id === current);
